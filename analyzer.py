@@ -67,11 +67,27 @@ def market_and_style(lang: str):
 # File reading
 # ---------------------------
 def extract_text_from_file(file_path):
-    if file_path.lower().endswith(".pdf"):
+    ext = file_path.lower()
+    
+    if ext.endswith(".pdf"):
         with fitz.open(file_path) as doc:
             return "\n".join([page.get_text() for page in doc])
-    with open(file_path, "r", encoding="utf-8") as f:
-        return f.read()
+
+    elif ext.endswith(".docx"):
+        try:
+            from docx import Document
+            doc = Document(file_path)
+            return "\n".join([p.text for p in doc.paragraphs])
+        except Exception as e:
+            return f"[❌ Error reading DOCX file: {e}]"
+
+    else:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            return f"[❌ Error reading TXT file: {e}]"
+
 
 
 # ---------------------------
