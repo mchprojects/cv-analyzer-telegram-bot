@@ -54,7 +54,7 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
 
 # Меню
 markup = ReplyKeyboardMarkup(
-    [["📄 Розбір резюме", "🎯 Під вакансію"], ["🧠 Консультація", "💌 Супровідний лист"]],
+    [["📄 CV analysis", "🎯 CV and job match analysis"], ["🧠 HR Expert Advice", "💌 Generate Cover Letter"]],
     resize_keyboard=True
 )
 
