@@ -26,8 +26,8 @@ ADMIN_ID = 6929149032
 ALLOWED_USERS = {ADMIN_ID}
 DENY_MSG = (
     "❌ You do not have access to this bot.\n\n"
-    "If you would like to use it, please send your request "
-    "in English to: mchprojects1@gmail.com"
+    "If you would like to use it, please send your request"
+    "to: mchprojects1@gmail.com"
 )
 
 def is_allowed(user_id: int) -> bool:
@@ -67,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "Привіт! Обери, що ти хочеш зробити:", reply_markup=markup
+        "Hi! Please choose what you’d like to do:", reply_markup=markup
     )
 
 # Обробка текстових повідомлень (вибір з меню)
@@ -80,20 +80,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text
 
-    if text == "📄 Розбір резюме":
+    if text == "📄 CV analysis":
         user_state[user_id] = {"mode": "resume"}
-        await update.message.reply_text("Надішли своє резюме у PDF або текстовому форматі.", reply_markup=markup)
-    elif text == "🎯 Під вакансію":
+        await update.message.reply_text("Please upload your resume in PDF or text format", reply_markup=markup)
+    elif text == "🎯 CV and job match analysis":
         user_state[user_id] = {"mode": "vacancy"}
-        await update.message.reply_text("Надішли вакансію (PDF або текстом). Потім надішли своє резюме.", reply_markup=markup)
-    elif text == "🧠 Консультація":
+        await update.message.reply_text("Please send the job vacancy (as a PDF or text), and then provide your CV", reply_markup=markup)
+    elif text == "🧠 HR Expert Advice":
         user_state[user_id] = {"mode": "consult"}
-        await update.message.reply_text("Надішли своє резюме для HR-консультації.", reply_markup=markup)
-    elif text == "💌 Супровідний лист":
+        await update.message.reply_text("Please send your CV for an HR consultation", reply_markup=markup)
+    elif text == "💌 Generate Cover Letter":
         user_state[user_id] = {"mode": "cover"}
-        await update.message.reply_text("Надішли вакансію (PDF або текстом). Потім надішли своє резюме.", reply_markup=markup)
+        await update.message.reply_text("Please send the job vacancy (as a PDF or text), and then provide your CV", reply_markup=markup)
     else:
-        await update.message.reply_text("Будь ласка, обери опцію з меню 👇", reply_markup=markup)
+        await update.message.reply_text("Please select a menu option 👇", reply_markup=markup)
 
 # Обробка текстових повідомлень як файл-контенту
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,7 +144,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         return
 
     # Повідомлення про початок обробки — лише після надсилання файлу/тексту
-    await update.message.reply_text("⌛ Обробляю ваш запит... Це може зайняти 10–15 секунд.")
+    await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
 
     try:
         if mode == "resume":
@@ -152,7 +152,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         elif mode == "vacancy":
             if "vacancy" not in user_state[user_id]:
                 user_state[user_id]["vacancy"] = file_path
-                await update.message.reply_text("Дякую! Тепер надішли своє резюме.")
+                await update.message.reply_text("Thank you! Please send your CV now")
                 return
             else:
                 resume_path = file_path
@@ -167,7 +167,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         elif mode == "cover":
             if "vacancy" not in user_state[user_id]:
                 user_state[user_id]["vacancy"] = file_path
-                await update.message.reply_text("Дякую! Тепер надішли своє резюме.")
+                await update.message.reply_text("Thank you! Please send your CV now")
                 return
             else:
                 resume_path = file_path
@@ -177,14 +177,14 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 result = await generate_cover_letter(vacancy_text, resume_text)
                 del user_state[user_id]["vacancy"]
         else:
-            result = "Невідомий режим. Обери опцію з меню 👇"
+            result = "❌ Unknown mode. Select an option from the menu 👇"
 
         # Надсилання результату по частинах
         for chunk in split_text(result):
             await update.message.reply_text(chunk, reply_markup=markup)
 
     except Exception as e:
-        await update.message.reply_text(f"Виникла помилка: {e}", reply_markup=markup)
+        await update.message.reply_text(f"Oops—something went wrong. Please try again later: {e}", reply_markup=markup)
 
 # Функція розділення довгого тексту
 def split_text(text, max_length=4000):
