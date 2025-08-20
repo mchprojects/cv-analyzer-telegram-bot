@@ -120,7 +120,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     document = update.message.document
     if not document:
-        await update.message.reply_text("Будь ласка, надішли файл у форматі PDF або .txt")
+        await update.message.reply_text("Please upload your resume in PDF or text format")
         return
 
     file = await context.bot.get_file(document.file_id)
@@ -140,15 +140,14 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
     mode = user_state.get(user_id, {}).get("mode")
 
     if not mode:
-        await update.message.reply_text("Будь ласка, обери опцію з меню 👇", reply_markup=markup)
+        await update.message.reply_text("Select an option from the menu 👇", reply_markup=markup)
         return
-
-    # Повідомлення про початок обробки — лише після надсилання файлу/тексту
-    await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
 
     try:
         if mode == "resume":
+            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
             result = await analyze_resume(file_path)
+
         elif mode == "vacancy":
             if "vacancy" not in user_state[user_id]:
                 user_state[user_id]["vacancy"] = file_path
@@ -159,11 +158,15 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 vacancy_path = user_state[user_id]["vacancy"]
                 vacancy_text = extract_text_from_file(vacancy_path)
                 resume_text = extract_text_from_file(resume_path)
+                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
                 result = await analyze_for_vacancy(vacancy_text, resume_text)
                 del user_state[user_id]["vacancy"]
+
         elif mode == "consult":
+            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
             resume_text = extract_text_from_file(file_path)
             result = await give_hr_feedback(resume_text)
+
         elif mode == "cover":
             if "vacancy" not in user_state[user_id]:
                 user_state[user_id]["vacancy"] = file_path
@@ -174,8 +177,10 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 vacancy_path = user_state[user_id]["vacancy"]
                 vacancy_text = extract_text_from_file(vacancy_path)
                 resume_text = extract_text_from_file(resume_path)
+                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
                 result = await generate_cover_letter(vacancy_text, resume_text)
                 del user_state[user_id]["vacancy"]
+
         else:
             result = "❌ Unknown mode. Select an option from the menu 👇"
 
