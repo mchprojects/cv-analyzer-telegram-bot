@@ -96,7 +96,7 @@ async def _ask_gpt(prompt: str) -> str:
 
 
 # ---------------------------
-# 🔍 Розбір резюме
+# 🔍 CV analysis
 # ---------------------------
 async def analyze_resume(file_path):
     content = safe_take(extract_text_from_file(file_path))
@@ -114,11 +114,11 @@ Analyze the following resume as if the candidate is applying for a modern, compe
 Your tasks:
 1) Give a clear overall impression (1–2 sentences).
 2) Evaluate each section separately:
-   - Summary/Profile
-   - Skills/Qualifications
-   - Experience (use metrics wherever possible)
-   - Education
-   - Formatting & ATS-readiness
+   - Summary/Profile (Загальний аналіз)
+   - Skills/Qualifications (Ключові навички/Кваліфікація)
+   - Experience (use metrics wherever possible) (Досвід)
+   - Education (Освіта)
+   - Formatting & ATS-readiness (Формат&Оцінка готовності)
 3) For every issue, provide a concrete suggestion AND an improved wording the candidate can copy.
 4) Finish with a one-paragraph “ideal rewritten summary” for this resume, aligned with the target market above.
 
@@ -129,7 +129,7 @@ CV:
 
 
 # ---------------------------
-# 🎯 Порівняння резюме з вакансією
+# 🎯 CV and job match analysis
 # ---------------------------
 async def analyze_for_vacancy(vacancy_text, resume_text):
     vacancy_text = safe_take(vacancy_text)
@@ -161,7 +161,7 @@ Below is a job description and the candidate’s current CV. Your job:
 
 
 # ---------------------------
-# 🧠 Консультація від HR
+# 🧠 HR Expert Advice
 # ---------------------------
 async def give_hr_feedback(resume_text):
     resume_text = safe_take(resume_text)
@@ -196,7 +196,7 @@ CV:
 
 
 # ---------------------------
-# 💌 Генерація супровідного листа
+# 💌 Generate Cover Letter
 # ---------------------------
 async def generate_cover_letter(vacancy_text, resume_text):
     vacancy_text = safe_take(vacancy_text)
