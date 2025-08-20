@@ -38,8 +38,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
 
-    await update.message.reply_text("⌛ Обробляю ваш запит... Це може зайняти 10–15 секунд.")
-
     if text == "📄 Розбір резюме":
         user_state[user_id] = {"mode": "resume"}
         await update.message.reply_text("Надішли своє резюме у PDF або текстовому форматі.", reply_markup=markup)
@@ -84,6 +82,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
     if not mode:
         await update.message.reply_text("Будь ласка, обери опцію з меню 👇", reply_markup=markup)
         return
+    await update.message.reply_text("⌛ Обробляю ваш запит... Це може зайняти 10–15 секунд.")
 
     try:
         if mode == "resume":
