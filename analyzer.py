@@ -42,7 +42,7 @@ CV:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content.strip() if response.choices else "❌ GPT did not return a valid response."
 
 # 🎯 Порівняння резюме з вакансією
 async def analyze_for_vacancy(vacancy_text, resume_text):
@@ -68,7 +68,7 @@ Below is a job description and the candidate’s current CV. Your job:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content.strip() if response.choices else "❌ GPT did not return a valid response."
 
 # 🧠 Консультація від HR
 async def give_hr_feedback(resume_text):
@@ -95,7 +95,7 @@ CV:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content.strip() if response.choices else "❌ GPT did not return a valid response."
 
 # 💌 Генерація супровідного листа
 async def generate_cover_letter(vacancy_text, resume_text):
@@ -127,4 +127,4 @@ Use this structure:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content.strip() if response.choices else "❌ GPT did not return a valid response."

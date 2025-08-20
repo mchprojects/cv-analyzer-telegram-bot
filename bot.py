@@ -33,11 +33,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Привіт! Обери, що ти хочеш зробити:", reply_markup=markup
     )
 
-# Обробка вибору з меню
-async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: str = None, vacancy_text: str = None):
-    mode = user_modes.get(update.effective_user.id)
+# Обробка текстових повідомлень (вибір з меню)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    user_id = update.effective_user.id
 
-    # Відправляємо індикатор обробки
     await update.message.reply_text("⌛ Обробляю ваш запит... Це може зайняти 10–15 секунд.")
 
     if text == "📄 Розбір резюме":
@@ -54,11 +54,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         await update.message.reply_text("Надішли вакансію (PDF або текстом). Потім надішли своє резюме.", reply_markup=markup)
     else:
         await update.message.reply_text("Будь ласка, обери опцію з меню 👇", reply_markup=markup)
-# Розділяємо великий текст на частини
-        for chunk in split_text(result):
-            await update.message.reply_text(chunk)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Виникла помилка: {e}")
+
 # Обробка текстових повідомлень як файл-контенту
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
