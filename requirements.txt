@@ -1,0 +1,11 @@
+python-telegram-bot==21.*
+openai>=1.0.0
+pypdf
+python-docx
+pytesseract
+pillow
+python-dotenv
+boto3
+python-dateutil
+docx2pdf
+PyMuPDF
