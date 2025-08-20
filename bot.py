@@ -21,6 +21,37 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 # Стан користувача
 user_state = {}
 
+# 🔒 Доступ лише для дозволених користувачів + адмін
+ADMIN_ID = 6929149032
+ALLOWED_USERS = {ADMIN_ID}
+DENY_MSG = (
+    "❌ You do not have access to this bot.\n\n"
+    "If you would like to use it, please send your request "
+    "in English to: mchprojects1@gmail.com"
+)
+
+def is_allowed(user_id: int) -> bool:
+    return user_id in ALLOWED_USERS
+
+def format_user(u) -> str:
+    return f"ID={u.id}, Username={u.username}, Name={u.full_name}"
+
+async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Надсилає адміну повідомлення про неавторизовану спробу доступу."""
+    user = update.effective_user
+    chat = update.effective_chat
+    try:
+        msg = (
+            "🚨 *Unauthorized access attempt detected*\n"
+            f"- User: `{format_user(user)}`\n"
+            f"- Chat ID: `{chat.id if chat else 'n/a'}`\n"
+            f"- Message: `{update.message.text if update.message else 'n/a'}`"
+        )
+        await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode="Markdown")
+        logging.warning(f"🚨 Unauthorized access attempt! {format_user(user)}")
+    except Exception as e:
+        logging.error(f"Failed to notify admin about unauthorized access: {e}")
+
 # Меню
 markup = ReplyKeyboardMarkup(
     [["📄 Розбір резюме", "🎯 Під вакансію"], ["🧠 Консультація", "💌 Супровідний лист"]],
@@ -29,14 +60,25 @@ markup = ReplyKeyboardMarkup(
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
     await update.message.reply_text(
         "Привіт! Обери, що ти хочеш зробити:", reply_markup=markup
     )
 
 # Обробка текстових повідомлень (вибір з меню)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
     user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
+    text = update.message.text
 
     if text == "📄 Розбір резюме":
         user_state[user_id] = {"mode": "resume"}
@@ -55,14 +97,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Обробка текстових повідомлень як файл-контенту
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
     text = update.message.text
     file_path = f"input_{update.message.message_id}.txt"
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(text)
+
     await process_input(update, context, file_path)
 
 # Обробка PDF або текстових файлів
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
     document = update.message.document
     if not document:
         await update.message.reply_text("Будь ласка, надішли файл у форматі PDF або .txt")
@@ -77,11 +132,18 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Обробка вхідних даних залежно від режиму
 async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: str):
     user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
     mode = user_state.get(user_id, {}).get("mode")
 
     if not mode:
         await update.message.reply_text("Будь ласка, обери опцію з меню 👇", reply_markup=markup)
         return
+
+    # Повідомлення про початок обробки — лише після надсилання файлу/тексту
     await update.message.reply_text("⌛ Обробляю ваш запит... Це може зайняти 10–15 секунд.")
 
     try:
