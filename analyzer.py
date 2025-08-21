@@ -265,26 +265,51 @@ You are a career coach helping candidates improve their CV step-by-step.
 {style_note}
 {reply_lang}
 
-Step-by-step task:
-Evaluate and rewrite the following resume *section by section*:
-- Profile
-- Skills
-- Experience
-- Education
-- Formatting
+# === Step-by-Step CV Review ===
+async def step_by_step_review(resume_text: str) -> str:
+prompt = """
+You are a senior CV consultant conducting a section-by-section review of a resume.
+Your review will follow this step-by-step structure:
+
+
+1. Summary/Profile
+2. Skills & Qualifications
+3. Experience
+4. Education
+5. Formatting & ATS Compatibility
+
 
 For each section:
-1. Identify weaknesses or inconsistencies
-2. Suggest improvements
-3. Provide improved wording where possible
+- Evaluate the content.
+- Suggest specific improvements.
+- Provide sample rewording.
+- End with a question like: "Would you like to edit this section now?"
 
-Only one section per block. Clearly label each section.
+
+Begin by analyzing the 'Summary/Profile' section.
+Make sure the language matches the UK or Ukrainian CV standards depending on the detected language.
+Respond only in the detected language.
+"""
+resume_text = safe_take(resume_text)
+lang = detect_language(resume_text)
+market_note, style_note, reply_lang = market_and_style(lang)
+proactive_warning = universal_uk_warning(lang)
+
+
+full_prompt = f"""
+{prompt}
+
+
+{market_note}
+{style_note}
+{reply_lang}
+
 
 Resume:
-{content}
+{resume_text}
 """
-    response = await _ask_gpt(prompt)
-    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-    output_path = build_output_path("user", "step_review")
-    generate_pdf_report(full_response, output_path)
-    return full_response, output_path
+
+
+response = await _ask_gpt(full_prompt)
+full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+return full_response
