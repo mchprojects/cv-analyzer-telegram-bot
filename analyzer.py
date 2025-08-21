@@ -90,7 +90,7 @@ async def _ask_gpt(prompt: str) -> str:
     return resp.choices[0].message.content.strip() if resp.choices else "❌ GPT did not return a valid response."
 
 
-async def analyze_resume(file_path):
+async def analyze_resume(file_path, return_lang=False):
     content = safe_take(extract_text_from_file(file_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -98,10 +98,11 @@ async def analyze_resume(file_path):
 
     prompt = _build_full_prompt(content, market_note, style_note, reply_lang)
     response = await _ask_gpt(prompt)
-    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    return (result, lang) if return_lang else result
 
 
-async def analyze_for_vacancy(resume_path, vacancy_text):
+async def analyze_for_vacancy(resume_path, vacancy_text, return_lang=False):
     resume_content = safe_take(extract_text_from_file(resume_path))
     lang = detect_language(resume_content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -141,10 +142,11 @@ Job Vacancy:
 {vacancy_text}
 """
     response = await _ask_gpt(prompt)
-    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    return (result, lang) if return_lang else result
 
 
-async def give_hr_feedback(resume_path):
+async def give_hr_feedback(resume_path, return_lang=False):
     content = safe_take(extract_text_from_file(resume_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -178,7 +180,8 @@ Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    return (result, lang) if return_lang else result
 
 
 def _build_full_prompt(content: str, market_note: str, style_note: str, reply_lang: str) -> str:
