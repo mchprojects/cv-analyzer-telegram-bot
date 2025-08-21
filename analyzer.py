@@ -265,29 +265,39 @@ async def step_by_step_review(file_path):
     market_note, style_note, reply_lang = market_and_style(lang)
 
     prompt = f"""
-You are a CV improvement assistant.
+You are an expert CV reviewer and career coach.
 {market_note}
 {style_note}
 {reply_lang}
 
-Task:
-Review the resume in steps:
-1. Provide feedback ONLY on the Summary/Profile section.
-2. Then STOP and wait for confirmation from the user.
-3. Repeat for Skills, Experience, Education, Formatting.
 
-First step:
-Analyze ONLY the Summary/Profile:
-- What is good or missing?
-- Suggested rewrite?
-- Be detailed.
+Provide a step-by-step analysis of the following CV.
+Split your analysis clearly by these sections:
 
-Resume:
+
+1. Profile/Summary
+2. Skills & Tools
+3. Professional Experience
+4. Education
+5. Format & Structure
+
+
+For each section:
+- Summarise its strengths
+- List issues or areas for improvement
+- Provide improved or corrected examples
+
+
+Conclude with:
+- 3-5 improvement recommendations
+- Score per section (1–10) and overall score (xx/100)
+
+
+CV:
 {content}
 """
-    response = await _ask_gpt(prompt)
+response = await _ask_gpt(prompt)
 full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-
 output_path = build_output_path("user", "step_by_step_review")
 generate_pdf_report(full_response, output_path)
 return full_response, output_path
