@@ -1,3 +1,5 @@
+# --- analyzer.py (UPDATED: all 5 modes including Step-by-step review) ---
+
 import os
 import re
 import fitz  # PyMuPDF
@@ -130,7 +132,7 @@ Your tasks:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🌟 Overall Score: XX / 100
+🎯 Overall Score: XX / 100
 
 7) Based on lowest scoring areas, provide 3–5 actionable recommendations.
 
@@ -179,7 +181,7 @@ Task:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🌟 Overall Score: XX / 100
+🎯 Overall Score: XX / 100
 
 📌 Recommend 3–5 actions to increase alignment and success.
 
@@ -223,7 +225,7 @@ Rate the resume using:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🌟 Overall Score: XX / 100
+🎯 Overall Score: XX / 100
 
 📌 List 3–5 practical improvement tips.
 
@@ -259,47 +261,38 @@ Resume:
     generate_pdf_report(response, output_path)
     return response, output_path
 
-async def step_by_step_review(content):
-lang = detect_language(content)
-market_note, style_note, reply_lang = market_and_style(lang)
-proactive_warning = universal_uk_warning(lang)
+async def step_by_step_review(file_path):
+    async def _run():
+        content = safe_take(extract_text_from_file(file_path))
+        lang = detect_language(content)
+        market_note, style_note, reply_lang = market_and_style(lang)
 
-
-prompt = f"""
-You are a professional CV writing coach.
+        prompt = f"""
+You are a senior career coach.
 {market_note}
 {style_note}
 {reply_lang}
 
-
-Your task is to break down the following resume into sections and give feedback on each section separately. Use short and actionable tips.
-For each section:
-- Give a short evaluation.
-- Point out specific issues.
-- Offer improvements with examples.
-
+Perform a **step-by-step** CV review.
+- Review and comment each section one-by-one.
+- Ask the user if they would like to edit/improve that section.
+- Then move to the next section.
 
 Sections:
-1. Summary or Profile
-2. Skills / Competencies
-3. Work Experience
+1. Summary/Profile
+2. Skills/Qualifications
+3. Experience
 4. Education
-5. Additional Sections (Certifications, Languages, etc)
-6. Formatting & Layout
-7. Final Suggestions and Score
+5. Formatting & ATS
 
-
+Include practical improvement suggestions and examples.
 Resume:
 {content}
 """
+        response = await _ask_gpt(prompt)
+        full_response = response
+        output_path = build_output_path("user", "step_by_step")
+        generate_pdf_report(full_response, output_path)
+        return full_response, output_path
 
-
-async def _run():
-response = await _ask_gpt(prompt)
-full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-output_path = build_output_path("user", "step_by_step")
-generate_pdf_report(full_response, output_path)
-return full_response, output_path
-
-
-return _run()
+    return await _run()
