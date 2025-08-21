@@ -1,3 +1,6 @@
+# CVise Telegram Bot Project (Sensitive check in all modes)
+
+# --- analyzer.py (final unified detection) ---
 import os
 import re
 import fitz  # PyMuPDF
@@ -5,41 +8,21 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 load_dotenv()
-
-# Ініціалізація клієнта OpenAI
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ---------------------------
 # Language + market detection
 # ---------------------------
 def detect_language(text: str) -> str:
-    """
-    Very lightweight heuristic without extra deps:
-    - If Cyrillic dominates -> 'uk' (treat as Ukrainian market target)
-    - Else -> 'en'
-    """
     if not text:
         return "en"
-
     cyr = len(re.findall(r"[А-Яа-яЁёІіЇїЄєҐґ]", text))
     lat = len(re.findall(r"[A-Za-z]", text))
-
-    # If any distinctly Ukrainian letters present, force 'uk'
     if re.search(r"[ІіЇїЄєҐґ]", text):
         return "uk"
-
-    if cyr > lat:
-        return "uk"
-    return "en"
-
+    return "uk" if cyr > lat else "en"
 
 def market_and_style(lang: str):
-    """
-    Returns (market_note, style_note, reply_language_note)
-    - market_note: what market to optimize for
-    - style_note: region-specific conventions
-    - reply_language_note: instruction for output language
-    """
     if lang == "uk":
         return (
             "Орієнтуйся на ринок праці України.",
@@ -62,17 +45,14 @@ def market_and_style(lang: str):
             "Respond in English (UK).",
         )
 
-
 # ---------------------------
 # File reading
 # ---------------------------
 def extract_text_from_file(file_path):
     ext = file_path.lower()
-    
     if ext.endswith(".pdf"):
         with fitz.open(file_path) as doc:
             return "\n".join([page.get_text() for page in doc])
-
     elif ext.endswith(".docx"):
         try:
             from docx import Document
@@ -80,7 +60,6 @@ def extract_text_from_file(file_path):
             return "\n".join([p.text for p in doc.paragraphs])
         except Exception as e:
             return f"[❌ Error reading DOCX file: {e}]"
-
     else:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -88,19 +67,22 @@ def extract_text_from_file(file_path):
         except Exception as e:
             return f"[❌ Error reading TXT file: {e}]"
 
-
-
 # ---------------------------
 # Helpers
 # ---------------------------
 def safe_take(s: str, max_chars: int = 120_000) -> str:
-    """Simple guard to avoid extremely long inputs (keeps prompts snappy)."""
-    if not s:
-        return ""
-    if len(s) <= max_chars:
-        return s
-    return s[:max_chars] + "\n\n[...truncated for processing...]"
+    return s if len(s) <= max_chars else s[:max_chars] + "\n\n[...truncated for processing...]"
 
+def detect_sensitive_elements(text: str, lang: str) -> str:
+    warnings = []
+    if lang == "en":
+        if re.search(r"(photo|photograph|image|picture)", text, re.IGNORECASE):
+            warnings.append("⚠️ The CV appears to reference a photo. In the UK, including photos is discouraged.")
+        if re.search(r"date of birth|DOB|birth date", text, re.IGNORECASE):
+            warnings.append("⚠️ Date of birth detected. Avoid including it in UK CVs.")
+        if re.search(r"marital status|gender|nationality", text, re.IGNORECASE):
+            warnings.append("⚠️ Personal data like marital status or gender should not appear on UK CVs.")
+    return "\n".join(warnings)
 
 async def _ask_gpt(prompt: str) -> str:
     resp = await client.chat.completions.create(
@@ -110,7 +92,6 @@ async def _ask_gpt(prompt: str) -> str:
     )
     return resp.choices[0].message.content.strip() if resp.choices else "❌ GPT did not return a valid response."
 
-
 # ---------------------------
 # 🔍 CV analysis
 # ---------------------------
@@ -118,6 +99,7 @@ async def analyze_resume(file_path):
     content = safe_take(extract_text_from_file(file_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
+    sensitive_issues = detect_sensitive_elements(content, lang)
 
     prompt = f"""
 You are a professional career consultant with 10+ years of experience in HR and CV coaching.
@@ -130,19 +112,19 @@ Analyze the following resume as if the candidate is applying for a modern, compe
 Your tasks:
 1) Give a clear overall impression (1–2 sentences).
 2) Evaluate each section separately:
-   - Summary/Profile (Загальний аналіз)
-   - Skills/Qualifications (Ключові навички/Кваліфікація)
-   - Experience (use metrics wherever possible) (Досвід)
-   - Education (Освіта)
-   - Formatting & ATS-readiness (Формат&Оцінка готовності)
+   - Summary/Profile
+   - Skills/Qualifications
+   - Experience (use metrics wherever possible)
+   - Education
+   - Formatting & ATS-readiness
 3) For every issue, provide a concrete suggestion AND an improved wording the candidate can copy.
 4) Finish with a one-paragraph “ideal rewritten summary” for this resume, aligned with the target market above.
 
-CV:
+Resume:
 {content}
 """
-    return await _ask_gpt(prompt)
-
+    response = await _ask_gpt(prompt)
+    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
 
 # ---------------------------
 # 🎯 CV and job match analysis
@@ -150,9 +132,9 @@ CV:
 async def analyze_for_vacancy(vacancy_text, resume_text):
     vacancy_text = safe_take(vacancy_text)
     resume_text = safe_take(resume_text)
-
     lang = detect_language(resume_text or vacancy_text)
     market_note, style_note, reply_lang = market_and_style(lang)
+    sensitive_issues = detect_sensitive_elements(resume_text, lang)
 
     prompt = f"""
 You're a senior recruiter helping a candidate tailor their CV for a specific job.
@@ -161,20 +143,19 @@ You're a senior recruiter helping a candidate tailor their CV for a specific job
 {reply_lang}
 
 Below is a job description and the candidate’s current CV. Your job:
-1) Identify key hard and soft skills from the vacancy (prioritize those relevant to the target market).
-2) Map them to the candidate's experience (point to concrete evidence).
-3) Write a new personalized profile paragraph the candidate can paste into their CV.
-4) Provide 4–6 bullet points tailored to the vacancy for the Experience section (achievement-focused, ATS-friendly).
-5) List unmet requirements and actionable ways to address them (certs, projects, learning paths).
+1) Identify key hard and soft skills from the vacancy.
+2) Map them to the candidate's experience.
+3) Write a personalized profile paragraph.
+4) Suggest 4–6 tailored bullet points for Experience.
+5) List gaps and how to address them.
 
 📌 Job Vacancy:
 {vacancy_text}
-
 📄 Candidate's CV:
 {resume_text}
 """
-    return await _ask_gpt(prompt)
-
+    response = await _ask_gpt(prompt)
+    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
 
 # ---------------------------
 # 🧠 HR Expert Advice
@@ -183,6 +164,7 @@ async def give_hr_feedback(resume_text):
     resume_text = safe_take(resume_text)
     lang = detect_language(resume_text)
     market_note, style_note, reply_lang = market_and_style(lang)
+    sensitive_issues = detect_sensitive_elements(resume_text, lang)
 
     prompt = f"""
 Imagine you're a senior HR specialist providing a deep consultation to improve this resume.
@@ -194,22 +176,22 @@ Provide a full audit under these sections:
 1) Format & Layout
 2) Tone & Wording
 3) Achievements (metrics, results, impact)
-4) Focus (relevance, clarity of message)
-5) Suggestions (what to restructure, cut, or emphasize)
+4) Focus (relevance, clarity)
+5) Suggestions (what to restructure or cut)
 
 For each issue:
-- Briefly explain why it matters for the {('UK' if lang=='en' else 'Ukrainian')} market
-- Provide a concrete revision or rephrased example the candidate can paste
+- Explain its relevance for the {'UK' if lang=='en' else 'Ukrainian'} market
+- Provide a rephrased example
 
 Finish with:
-- A competitiveness score out of 10 (for the target market)
-- A 3–5 line action plan for the next edit iteration
+- Competitiveness score out of 10
+- 3–5 line action plan
 
 CV:
 {resume_text}
 """
-    return await _ask_gpt(prompt)
-
+    response = await _ask_gpt(prompt)
+    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
 
 # ---------------------------
 # 💌 Generate Cover Letter
@@ -217,34 +199,33 @@ CV:
 async def generate_cover_letter(vacancy_text, resume_text):
     vacancy_text = safe_take(vacancy_text)
     resume_text = safe_take(resume_text)
-
     lang = detect_language(resume_text or vacancy_text)
     market_note, style_note, reply_lang = market_and_style(lang)
+    sensitive_issues = detect_sensitive_elements(resume_text, lang)
 
     prompt = f"""
-You are an expert in writing winning cover letters that blend personality and professionalism.
+You are an expert in writing winning cover letters.
 {market_note}
 {style_note}
 {reply_lang}
 
-Write a tailored, job-specific cover letter based on:
+Write a tailored cover letter based on:
 - the job description
-- the candidate’s resume
-- the target company context (infer from vacancy if needed)
+- the resume
+- the company context (infer if needed)
 
 Structure:
-1) Intro — clear interest in role & company
-2) Why this company — values/mission/goals alignment (UK/UA market expectations as relevant)
-3) Why this candidate — 2–3 concrete, metric-backed achievements
-4) Close — enthusiasm + call to interview
+1) Intro — interest in role & company
+2) Why this company — alignment with values
+3) Why this candidate — 2–3 metric-backed achievements
+4) Close — enthusiasm + CTA
 
-Tone: confident, polite, modern.
-Length: up to 300 words, clear paragraphs.
+Tone: confident, modern. Length: up to 300 words.
 
 📌 Job Vacancy:
 {vacancy_text}
-
 📄 Candidate's CV:
 {resume_text}
 """
-    return await _ask_gpt(prompt)
+    response = await _ask_gpt(prompt)
+    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
