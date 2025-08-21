@@ -1,6 +1,6 @@
-# CVise Telegram Bot Project (Sensitive check in all modes)
+# CVise Telegram Bot Project (Proactive UK photo warning in all modes)
 
-# --- analyzer.py (final unified detection) ---
+# --- analyzer.py ---
 import os
 import re
 import fitz  # PyMuPDF
@@ -73,16 +73,13 @@ def extract_text_from_file(file_path):
 def safe_take(s: str, max_chars: int = 120_000) -> str:
     return s if len(s) <= max_chars else s[:max_chars] + "\n\n[...truncated for processing...]"
 
-def detect_sensitive_elements(text: str, lang: str) -> str:
-    warnings = []
+def universal_uk_warning(lang: str) -> str:
     if lang == "en":
-        if re.search(r"(photo|photograph|image|picture)", text, re.IGNORECASE):
-            warnings.append("⚠️ The CV appears to reference a photo. In the UK, including photos is discouraged.")
-        if re.search(r"date of birth|DOB|birth date", text, re.IGNORECASE):
-            warnings.append("⚠️ Date of birth detected. Avoid including it in UK CVs.")
-        if re.search(r"marital status|gender|nationality", text, re.IGNORECASE):
-            warnings.append("⚠️ Personal data like marital status or gender should not appear on UK CVs.")
-    return "\n".join(warnings)
+        return (
+            "⚠️ Note: If your CV includes a photo or personal data such as date of birth, gender, or marital status, "
+            "we recommend removing them for applications in the UK job market."
+        )
+    return ""
 
 async def _ask_gpt(prompt: str) -> str:
     resp = await client.chat.completions.create(
@@ -99,7 +96,7 @@ async def analyze_resume(file_path):
     content = safe_take(extract_text_from_file(file_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
-    sensitive_issues = detect_sensitive_elements(content, lang)
+    proactive_warning = universal_uk_warning(lang)
 
     prompt = f"""
 You are a professional career consultant with 10+ years of experience in HR and CV coaching.
@@ -124,7 +121,7 @@ Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
+    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
 
 # ---------------------------
 # 🎯 CV and job match analysis
@@ -134,7 +131,7 @@ async def analyze_for_vacancy(vacancy_text, resume_text):
     resume_text = safe_take(resume_text)
     lang = detect_language(resume_text or vacancy_text)
     market_note, style_note, reply_lang = market_and_style(lang)
-    sensitive_issues = detect_sensitive_elements(resume_text, lang)
+    proactive_warning = universal_uk_warning(lang)
 
     prompt = f"""
 You're a senior recruiter helping a candidate tailor their CV for a specific job.
@@ -155,7 +152,7 @@ Below is a job description and the candidate’s current CV. Your job:
 {resume_text}
 """
     response = await _ask_gpt(prompt)
-    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
+    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
 
 # ---------------------------
 # 🧠 HR Expert Advice
@@ -164,7 +161,7 @@ async def give_hr_feedback(resume_text):
     resume_text = safe_take(resume_text)
     lang = detect_language(resume_text)
     market_note, style_note, reply_lang = market_and_style(lang)
-    sensitive_issues = detect_sensitive_elements(resume_text, lang)
+    proactive_warning = universal_uk_warning(lang)
 
     prompt = f"""
 Imagine you're a senior HR specialist providing a deep consultation to improve this resume.
@@ -191,7 +188,7 @@ CV:
 {resume_text}
 """
     response = await _ask_gpt(prompt)
-    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
+    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
 
 # ---------------------------
 # 💌 Generate Cover Letter
@@ -201,7 +198,7 @@ async def generate_cover_letter(vacancy_text, resume_text):
     resume_text = safe_take(resume_text)
     lang = detect_language(resume_text or vacancy_text)
     market_note, style_note, reply_lang = market_and_style(lang)
-    sensitive_issues = detect_sensitive_elements(resume_text, lang)
+    proactive_warning = universal_uk_warning(lang)
 
     prompt = f"""
 You are an expert in writing winning cover letters.
@@ -228,4 +225,4 @@ Tone: confident, modern. Length: up to 300 words.
 {resume_text}
 """
     response = await _ask_gpt(prompt)
-    return f"{sensitive_issues}\n\n{response}" if sensitive_issues else response
+    return f"{proactive_warning}\n\n{response}" if proactive_warning else response
