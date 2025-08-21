@@ -286,4 +286,8 @@ Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    return full_response, output_path
+full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+
+output_path = build_output_path("user", "step_by_step_review")
+generate_pdf_report(full_response, output_path)
+return full_response, output_path
