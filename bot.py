@@ -1,4 +1,4 @@
-# --- bot.py (Step-by-step CV review included) ---
+# --- bot.py (FINAL FIXED: PDF on request, correct state, no double processing) ---
 
 import os
 import logging
@@ -13,15 +13,15 @@ from analyzer import (
     step_by_step_review,
 )
 
-# Логування
+# Logging
 logging.basicConfig(level=logging.INFO)
 
-# Токен із .env
+# Load token from .env
 from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Стан користувача
+# State and storage
 user_state = {}
 user_results = {}
 
@@ -54,10 +54,11 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
     except Exception as e:
         logging.error(f"Failed to notify admin about unauthorized access: {e}")
 
+# Main keyboard
 markup = ReplyKeyboardMarkup(
-    [["\ud83d\udcc4 CV analysis", "\ud83c\udfaf CV and job match analysis"],
-     ["\ud83e\udde0 HR Expert Advice", "\ud83d\udc8c Generate Cover Letter"],
-     ["\ud83e\ude9c Step-by-step CV review"]],
+    [["\ud83d\udcc4 CV analysis", "\ud83c\udf1f Step-by-step CV review"],
+     ["\ud83c\udfaf CV and job match analysis"],
+     ["\ud83e\udde0 HR Expert Advice", "\ud83d\udc8c Generate Cover Letter"]],
     resize_keyboard=True
 )
 
@@ -78,35 +79,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
-    modes = {
-        "\ud83d\udcc4 CV analysis": "resume",
-        "\ud83c\udfaf CV and job match analysis": "vacancy",
-        "\ud83e\udde0 HR Expert Advice": "consult",
-        "\ud83d\udc8c Generate Cover Letter": "cover",
-        "\ud83e\ude9c Step-by-step CV review": "step"
-    }
-    if text in modes:
-        user_state[user_id] = {"mode": modes[text]}
-        if text in ["\ud83c\udfaf CV and job match analysis", "\ud83d\udc8c Generate Cover Letter"]:
-            await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
-        else:
-            await update.message.reply_text("Please upload your resume in PDF, DOCX or text format", reply_markup=markup)
+    if text == "\ud83d\udcc4 CV analysis":
+        user_state[user_id] = {"mode": "resume"}
+        await update.message.reply_text("Please upload your resume in PDF, DOCX or text format", reply_markup=markup)
+    elif text == "\ud83c\udfaf CV and job match analysis":
+        user_state[user_id] = {"mode": "vacancy"}
+        await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
+    elif text == "\ud83e\udde0 HR Expert Advice":
+        user_state[user_id] = {"mode": "consult"}
+        await update.message.reply_text("Please send your CV for an HR consultation")
+    elif text == "\ud83d\udc8c Generate Cover Letter":
+        user_state[user_id] = {"mode": "cover"}
+        await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
+    elif text == "\ud83c\udf1f Step-by-step CV review":
+        user_state[user_id] = {"mode": "step"}
+        await update.message.reply_text("Please send your CV for step-by-step section analysis")
     else:
         await update.message.reply_text("Please select a menu option 👇", reply_markup=markup)
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_allowed(user_id):
-        await notify_admin_about_unauthorized(update, context)
-        await update.message.reply_text(DENY_MSG)
-        return
-
-    text = update.message.text
-    file_path = f"input_{update.message.message_id}.txt"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(text)
-
-    await process_input(update, context, file_path)
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -227,9 +216,8 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_pdf_request, pattern="get_pdf"))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(doc_filter, handle_file))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     app.run_polling()
 
