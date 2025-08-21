@@ -1,4 +1,4 @@
-# --- analyzer.py (FULL VERSION: PDF logic for all modes) ---
+# --- analyzer.py (FULL VERSION with Step-by-Step Mode) ---
 
 import os
 import re
@@ -118,23 +118,15 @@ Your tasks:
 3) For every issue, provide a concrete suggestion AND an improved wording the candidate can copy.
 4) Finish with a one-paragraph “ideal rewritten summary” for this resume, aligned with the target market above.
 5) Rate the following categories from 1 to 10:
-   • Summary/Profile
-   • Skills & Qualifications
-   • Experience
-   • Education
-   • Formatting & ATS-readiness
-6) Then, calculate the average score and present it clearly like this:
-
-📊 CV Score Breakdown:
-• Summary/Profile: X / 10
-• Skills & Qualifications: X / 10
-• Experience: X / 10
-• Education: X / 10
-• Formatting & ATS: X / 10
+   • Summary/Profile: X / 10
+   • Skills & Qualifications: X / 10
+   • Experience: X / 10
+   • Education: X / 10
+   • Formatting & ATS: X / 10
 
 🎯 Overall Score: XX / 100
 
-7) Based on lowest scoring areas, provide 3–5 actionable recommendations.
+6) Based on lowest scoring areas, provide 3–5 actionable recommendations.
 
 Resume:
 {content}
@@ -260,3 +252,39 @@ Resume:
     output_path = build_output_path("user", "cover_letter")
     generate_pdf_report(response, output_path)
     return response, output_path
+
+async def analyze_step_by_step(file_path):
+    content = safe_take(extract_text_from_file(file_path))
+    lang = detect_language(content)
+    market_note, style_note, reply_lang = market_and_style(lang)
+    proactive_warning = universal_uk_warning(lang)
+
+    prompt = f"""
+You are a career coach helping candidates improve their CV step-by-step.
+{market_note}
+{style_note}
+{reply_lang}
+
+Step-by-step task:
+Evaluate and rewrite the following resume *section by section*:
+- Profile
+- Skills
+- Experience
+- Education
+- Formatting
+
+For each section:
+1. Identify weaknesses or inconsistencies
+2. Suggest improvements
+3. Provide improved wording where possible
+
+Only one section per block. Clearly label each section.
+
+Resume:
+{content}
+"""
+    response = await _ask_gpt(prompt)
+    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    output_path = build_output_path("user", "step_review")
+    generate_pdf_report(full_response, output_path)
+    return full_response, output_path

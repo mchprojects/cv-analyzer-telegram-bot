@@ -1,4 +1,5 @@
-# --- bot.py (with PDF on request + fixed double processing message) ---
+# --- bot.py (Step-by-step CV review included) ---
+
 import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
@@ -9,6 +10,7 @@ from analyzer import (
     analyze_for_vacancy,
     give_hr_feedback,
     generate_cover_letter,
+    step_by_step_review,
 )
 
 # Логування
@@ -53,7 +55,9 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
         logging.error(f"Failed to notify admin about unauthorized access: {e}")
 
 markup = ReplyKeyboardMarkup(
-    [["📄 CV analysis", "🎯 CV and job match analysis"], ["🧠 HR Expert Advice", "💌 Generate Cover Letter"]],
+    [["\ud83d\udcc4 CV analysis", "\ud83c\udfaf CV and job match analysis"],
+     ["\ud83e\udde0 HR Expert Advice", "\ud83d\udc8c Generate Cover Letter"],
+     ["\ud83e\ude9c Step-by-step CV review"]],
     resize_keyboard=True
 )
 
@@ -74,18 +78,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
-    if text == "📄 CV analysis":
-        user_state[user_id] = {"mode": "resume"}
-        await update.message.reply_text("Please upload your resume in PDF, DOCX or text format", reply_markup=markup)
-    elif text == "🎯 CV and job match analysis":
-        user_state[user_id] = {"mode": "vacancy"}
-        await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
-    elif text == "🧠 HR Expert Advice":
-        user_state[user_id] = {"mode": "consult"}
-        await update.message.reply_text("Please send your CV for an HR consultation")
-    elif text == "💌 Generate Cover Letter":
-        user_state[user_id] = {"mode": "cover"}
-        await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
+    modes = {
+        "\ud83d\udcc4 CV analysis": "resume",
+        "\ud83c\udfaf CV and job match analysis": "vacancy",
+        "\ud83e\udde0 HR Expert Advice": "consult",
+        "\ud83d\udc8c Generate Cover Letter": "cover",
+        "\ud83e\ude9c Step-by-step CV review": "step"
+    }
+    if text in modes:
+        user_state[user_id] = {"mode": modes[text]}
+        if text in ["\ud83c\udfaf CV and job match analysis", "\ud83d\udc8c Generate Cover Letter"]:
+            await update.message.reply_text("Please send the job vacancy (PDF, DOCX or text), and then send your CV")
+        else:
+            await update.message.reply_text("Please upload your resume in PDF, DOCX or text format", reply_markup=markup)
     else:
         await update.message.reply_text("Please select a menu option 👇", reply_markup=markup)
 
@@ -135,7 +140,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
 
     try:
         if mode == "resume":
-            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             text_result, pdf_path = await analyze_resume(file_path)
 
         elif mode == "vacancy":
@@ -147,11 +152,11 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 resume_path = file_path
                 vacancy_path = user_state[user_id]["vacancy"]
                 del user_state[user_id]["vacancy"]
-                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+                await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
                 text_result, pdf_path = await analyze_for_vacancy(resume_path, extract_text_from_file(vacancy_path))
 
         elif mode == "consult":
-            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             text_result, pdf_path = await give_hr_feedback(file_path)
 
         elif mode == "cover":
@@ -163,11 +168,15 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 resume_path = file_path
                 vacancy_path = user_state[user_id]["vacancy"]
                 del user_state[user_id]["vacancy"]
-                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+                await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
                 text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
 
+        elif mode == "step":
+            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
+            text_result, pdf_path = await step_by_step_review(file_path)
+
         else:
-            text_result, pdf_path = ("❌ Unknown mode. Select an option from the menu 👇", None)
+            text_result, pdf_path = ("\u274c Unknown mode. Select an option from the menu 👇", None)
 
         for chunk in split_text(text_result):
             await update.message.reply_text(chunk, reply_markup=markup)
@@ -175,7 +184,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         if pdf_path:
             user_results[user_id] = pdf_path
             keyboard = InlineKeyboardMarkup.from_button(
-                InlineKeyboardButton("💾 Download PDF version", callback_data="get_pdf")
+                InlineKeyboardButton("📀 Download PDF version", callback_data="get_pdf")
             )
             await update.message.reply_text("You can download the result as PDF:", reply_markup=keyboard)
 
