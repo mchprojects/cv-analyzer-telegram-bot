@@ -3,7 +3,7 @@
 
 import os
 import re
-import fitz # PyMuPDF
+import fitz  # PyMuPDF
 import datetime
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -11,19 +11,17 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
 def detect_language(text: str) -> str:
-if not text:
-return "en"
-cyr = len(re.findall(r"[А-Яа-яЁёІіЇїЄєҐґ]", text))
-lat = len(re.findall(r"[A-Za-z]", text))
-if re.search(r"[ІіЇїЄєҐґ]", text):
-return "uk"
-return "uk" if cyr > lat else "en"
+    if not text:
+        return "en"
+    cyr = len(re.findall(r"[А-Яа-яЁёІіЇїЄєҐґ]", text))
+    lat = len(re.findall(r"[A-Za-z]", text))
+    if re.search(r"[ІіЇїЄєҐґ]", text):
+        return "uk"
+    return "uk" if cyr > lat else "en"
 
 
 def market_and_style(lang: str):
@@ -280,9 +278,9 @@ Resume:
 
 # NEW: edit_section for one-by-one editing
 async def edit_section(section_name: str, current_text: str) -> str:
-prompt = (
-f"Please improve the following section of a CV. Keep it concise and professional. "
-f"Only rewrite the text, do not return explanations.\n\n"
-f"Section: {section_name}\n\n{current_text}"
-)
-return await _ask_gpt(prompt)
+    prompt = (
+        f"Please improve the following section of a CV. Keep it concise and professional. "
+        f"Only rewrite the text, do not return explanations.\n\n"
+        f"Section: {section_name}\n\n{current_text}"
+    )
+    return await _ask_gpt(prompt)
