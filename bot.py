@@ -8,7 +8,8 @@ from analyzer import (
     analyze_for_vacancy,
     give_hr_feedback,
     generate_cover_letter,
-    step_by_step_review
+    step_by_step_review,
+    edit_section
 )
 
 # Логування
@@ -81,7 +82,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Generate Cover Letter": "cover",
         "Step-by-step CV review": "step"
     }
-    
+
     if text in modes:
         user_state[user_id] = {"mode": modes[text]}
         prompts = {
@@ -103,6 +104,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
+
+    if user_state.get(user_id, {}).get("edit_section"):
+        section = user_state[user_id].pop("edit_section")
+        original = user_state[user_id].pop("original_text", "")
+        edited_result = await edit_section(section, original, text)
+        for chunk in split_text(edited_result):
+            await update.message.reply_text(chunk, reply_markup=markup)
+        return
+
     file_path = f"input_{update.message.message_id}.txt"
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(text)
@@ -140,34 +150,29 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         return
 
     try:
-        await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-
-        if mode == "resume":
-            text_result, pdf_path = await analyze_resume(file_path)
-        elif mode == "vacancy":
+        if mode == "vacancy" or mode == "cover":
             if "vacancy" not in user_state[user_id]:
                 user_state[user_id]["vacancy"] = file_path
                 await update.message.reply_text("Thank you! Please send your CV now")
                 return
             else:
+                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
                 resume_path = file_path
                 vacancy_path = user_state[user_id].pop("vacancy")
-                text_result, pdf_path = await analyze_for_vacancy(resume_path, extract_text_from_file(vacancy_path))
-        elif mode == "consult":
-            text_result, pdf_path = await give_hr_feedback(file_path)
-        elif mode == "cover":
-            if "vacancy" not in user_state[user_id]:
-                user_state[user_id]["vacancy"] = file_path
-                await update.message.reply_text("Thank you! Please send your CV now")
-                return
-            else:
-                resume_path = file_path
-                vacancy_path = user_state[user_id].pop("vacancy")
-                text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
-        elif mode == "step":
-            text_result, pdf_path = await step_by_step_review(file_path)
+                if mode == "vacancy":
+                    text_result, pdf_path = await analyze_for_vacancy(resume_path, extract_text_from_file(vacancy_path))
+                else:
+                    text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
         else:
-            text_result, pdf_path = ("❌ Unknown mode. Select an option from the menu.", None)
+            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+            if mode == "resume":
+                text_result, pdf_path = await analyze_resume(file_path)
+            elif mode == "consult":
+                text_result, pdf_path = await give_hr_feedback(file_path)
+            elif mode == "step":
+                text_result, pdf_path = await step_by_step_review(file_path)
+            else:
+                text_result, pdf_path = ("❌ Unknown mode. Select an option from the menu.", None)
 
         for chunk in split_text(text_result):
             await update.message.reply_text(chunk, reply_markup=markup)
