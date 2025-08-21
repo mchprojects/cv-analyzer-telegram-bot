@@ -25,28 +25,27 @@ def detect_language(text: str) -> str:
 
 
 def market_and_style(lang: str):
-if lang == "uk":
-return (
-"Орієнтуйся на ринок праці України.",
-(
-"Враховуй звичні для України підходи до резюме (може бути 1–2 сторінки, "
-"обережно з особистими даними; сфокусуйся на досягненнях і релевантних навичках). "
-"Поясни, як підвищити ATS-сумісність українською. "
-"За потреби зазнач, як адаптувати формат/розділи відповідно до очікувань роботодавців в Україні."
-),
-"Відповідай українською мовою.",
-)
-else:
-return (
-"Target the United Kingdom job market.",
-(
-"Use UK CV conventions (no photo/date of birth, concise bullet points, UK spelling, "
-"ATS-friendly formatting, clear impact metrics). "
-"If appropriate, reference UK norms (e.g., responsibilities vs achievements, tailored skills)."
-),
-"Respond in English (UK).",
-)
-
+    if lang == "uk":
+        return (
+            "Орієнтуйся на ринок праці України.",
+            (
+                "Враховуй звичні для України підходи до резюме (може бути 1–2 сторінки, "
+                "обережно з особистими даними; сфокусуйся на досягненнях і релевантних навичках). "
+                "Поясни, як підвищити ATS-сумісність українською. "
+                "За потреби зазнач, як адаптувати формат/розділи відповідно до очікувань роботодавців в Україні."
+            ),
+            "Відповідай українською мовою.",
+        )
+    else:
+        return (
+            "Target the United Kingdom job market.",
+            (
+                "Use UK CV conventions (no photo/date of birth, concise bullet points, UK spelling, "
+                "ATS-friendly formatting, clear impact metrics). "
+                "If appropriate, reference UK norms (e.g., responsibilities vs achievements, tailored skills)."
+            ),
+            "Respond in English (UK).",
+        )
 
 def extract_text_from_file(file_path):
 ext = file_path.lower()
