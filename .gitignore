@@ -1,1 +1,7 @@
 .env
+__pycache__/
+*.pyc
+*.pdf
+*.docx
+*.txt
+input_*.txt
