@@ -1,7 +1,11 @@
+# CVise Telegram Bot Project (Updated with .docx support)
+
+# --- bot.py (updated) ---
 import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.constants import DocumentMimeType
 from analyzer import (
     extract_text_from_file,
     analyze_resume,
@@ -37,7 +41,6 @@ def format_user(u) -> str:
     return f"ID={u.id}, Username={u.username}, Name={u.full_name}"
 
 async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Надсилає адміну повідомлення про неавторизовану спробу доступу."""
     user = update.effective_user
     chat = update.effective_chat
     try:
@@ -82,16 +85,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "📄 CV analysis":
         user_state[user_id] = {"mode": "resume"}
-        await update.message.reply_text("Please upload your resume in PDF or text format", reply_markup=markup)
+        await update.message.reply_text("Please upload your resume in PDF, DOCX or text format", reply_markup=markup)
     elif text == "🎯 CV and job match analysis":
         user_state[user_id] = {"mode": "vacancy"}
-        await update.message.reply_text("Please send the job vacancy (as a PDF or text), and then provide your CV", reply_markup=markup)
+        await update.message.reply_text("Please send the job vacancy (as a PDF, DOCX or text), and then provide your CV", reply_markup=markup)
     elif text == "🧠 HR Expert Advice":
         user_state[user_id] = {"mode": "consult"}
         await update.message.reply_text("Please send your CV for an HR consultation", reply_markup=markup)
     elif text == "💌 Generate Cover Letter":
         user_state[user_id] = {"mode": "cover"}
-        await update.message.reply_text("Please send the job vacancy (as a PDF or text), and then provide your CV", reply_markup=markup)
+        await update.message.reply_text("Please send the job vacancy (as a PDF, DOCX or text), and then provide your CV", reply_markup=markup)
     else:
         await update.message.reply_text("Please select a menu option 👇", reply_markup=markup)
 
@@ -110,7 +113,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await process_input(update, context, file_path)
 
-# Обробка PDF або текстових файлів
+# Обробка PDF, DOCX або текстових файлів
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
@@ -120,7 +123,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     document = update.message.document
     if not document:
-        await update.message.reply_text("Please upload your resume in PDF or text format")
+        await update.message.reply_text("Please upload your resume in PDF, DOCX or text format")
         return
 
     file = await context.bot.get_file(document.file_id)
@@ -209,9 +212,16 @@ def split_text(text, max_length=4000):
 # Запуск бота
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
+
+    doc_filter = (
+        filters.Document.MimeType("application/pdf") |
+        filters.Document.MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.document") |
+        filters.Document.TEXT
+    )
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    app.add_handler(MessageHandler(filters.Document.PDF | filters.Document.TEXT, handle_file))
+    app.add_handler(MessageHandler(doc_filter, handle_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.run_polling()
 
