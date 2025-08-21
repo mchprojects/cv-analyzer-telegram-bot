@@ -1,5 +1,3 @@
-# --- analyzer.py (FULL VERSION with Step-by-Step Mode) ---
-
 import os
 import re
 import fitz  # PyMuPDF
@@ -118,15 +116,23 @@ Your tasks:
 3) For every issue, provide a concrete suggestion AND an improved wording the candidate can copy.
 4) Finish with a one-paragraph “ideal rewritten summary” for this resume, aligned with the target market above.
 5) Rate the following categories from 1 to 10:
-   • Summary/Profile: X / 10
-   • Skills & Qualifications: X / 10
-   • Experience: X / 10
-   • Education: X / 10
-   • Formatting & ATS: X / 10
+   • Summary/Profile
+   • Skills & Qualifications
+   • Experience
+   • Education
+   • Formatting & ATS-readiness
+6) Then, calculate the average score and present it clearly like this:
 
-🎯 Overall Score: XX / 100
+📊 CV Score Breakdown:
+• Summary/Profile: X / 10
+• Skills & Qualifications: X / 10
+• Experience: X / 10
+• Education: X / 10
+• Formatting & ATS: X / 10
 
-6) Based on lowest scoring areas, provide 3–5 actionable recommendations.
+🌟 Overall Score: XX / 100
+
+7) Based on lowest scoring areas, provide 3–5 actionable recommendations.
 
 Resume:
 {content}
@@ -173,7 +179,7 @@ Task:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🎯 Overall Score: XX / 100
+🌟 Overall Score: XX / 100
 
 📌 Recommend 3–5 actions to increase alignment and success.
 
@@ -217,7 +223,7 @@ Rate the resume using:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🎯 Overall Score: XX / 100
+🌟 Overall Score: XX / 100
 
 📌 List 3–5 practical improvement tips.
 
@@ -253,63 +259,31 @@ Resume:
     generate_pdf_report(response, output_path)
     return response, output_path
 
-async def analyze_step_by_step(file_path):
+async def step_by_step_review(file_path):
     content = safe_take(extract_text_from_file(file_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
-    proactive_warning = universal_uk_warning(lang)
 
     prompt = f"""
-You are a career coach helping candidates improve their CV step-by-step.
+You are a CV improvement assistant.
 {market_note}
 {style_note}
 {reply_lang}
 
-# === Step-by-Step CV Review ===
-async def step_by_step_review(resume_text: str) -> str:
-prompt = """
-You are a senior CV consultant conducting a section-by-section review of a resume.
-Your review will follow this step-by-step structure:
+Task:
+Review the resume in steps:
+1. Provide feedback ONLY on the Summary/Profile section.
+2. Then STOP and wait for confirmation from the user.
+3. Repeat for Skills, Experience, Education, Formatting.
 
-
-1. Summary/Profile
-2. Skills & Qualifications
-3. Experience
-4. Education
-5. Formatting & ATS Compatibility
-
-
-For each section:
-- Evaluate the content.
-- Suggest specific improvements.
-- Provide sample rewording.
-- End with a question like: "Would you like to edit this section now?"
-
-
-Begin by analyzing the 'Summary/Profile' section.
-Make sure the language matches the UK or Ukrainian CV standards depending on the detected language.
-Respond only in the detected language.
-"""
-resume_text = safe_take(resume_text)
-lang = detect_language(resume_text)
-market_note, style_note, reply_lang = market_and_style(lang)
-proactive_warning = universal_uk_warning(lang)
-
-
-full_prompt = f"""
-{prompt}
-
-
-{market_note}
-{style_note}
-{reply_lang}
-
+First step:
+Analyze ONLY the Summary/Profile:
+- What is good or missing?
+- Suggested rewrite?
+- Be detailed.
 
 Resume:
-{resume_text}
+{content}
 """
-
-
-response = await _ask_gpt(full_prompt)
-full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-return full_response
+    response = await _ask_gpt(prompt)
+    return response
