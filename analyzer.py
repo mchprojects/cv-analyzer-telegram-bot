@@ -132,7 +132,7 @@ Your tasks:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🎯 Overall Score: XX / 100
+🌟 Overall Score: XX / 100
 
 7) Based on lowest scoring areas, provide 3–5 actionable recommendations.
 
@@ -181,7 +181,7 @@ Task:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🎯 Overall Score: XX / 100
+🌟 Overall Score: XX / 100
 
 📌 Recommend 3–5 actions to increase alignment and success.
 
@@ -225,7 +225,7 @@ Rate the resume using:
 • Education: X / 10
 • Formatting & ATS: X / 10
 
-🎯 Overall Score: XX / 100
+🌟 Overall Score: XX / 100
 
 📌 List 3–5 practical improvement tips.
 
@@ -296,3 +296,12 @@ Resume:
         return full_response, output_path
 
     return await _run()
+
+# NEW: edit_section for one-by-one editing
+async def edit_section(section_name: str, current_text: str) -> str:
+    prompt = (
+        f"Please improve the following section of a CV. Keep it concise and professional. "
+        f"Only rewrite the text, do not return explanations.\n\n"
+        f"Section: {section_name}\n\n{current_text}"
+    )
+    return await _ask_gpt(prompt)
