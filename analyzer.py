@@ -1,8 +1,9 @@
-# --- analyzer.py (UPDATED: all 5 modes including Step-by-step review) ---
+# --- analyzer.py (FINAL VERSION with edit_section) ---
+
 
 import os
 import re
-import fitz  # PyMuPDF
+import fitz # PyMuPDF
 import datetime
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -10,93 +11,73 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
+
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 def detect_language(text: str) -> str:
-    if not text:
-        return "en"
-    cyr = len(re.findall(r"[А-Яа-яЁёІіЇїЄєҐґ]", text))
-    lat = len(re.findall(r"[A-Za-z]", text))
-    if re.search(r"[ІіЇїЄєҐґ]", text):
-        return "uk"
-    return "uk" if cyr > lat else "en"
+if not text:
+return "en"
+cyr = len(re.findall(r"[А-Яа-яЁёІіЇїЄєҐґ]", text))
+lat = len(re.findall(r"[A-Za-z]", text))
+if re.search(r"[ІіЇїЄєҐґ]", text):
+return "uk"
+return "uk" if cyr > lat else "en"
+
 
 def market_and_style(lang: str):
-    if lang == "uk":
-        return (
-            "Орієнтуйся на ринок праці України.",
-            (
-                "Враховуй звичні для України підходи до резюме (може бути 1–2 сторінки, "
-                "обережно з особистими даними; сфокусуйся на досягненнях і релевантних навичках). "
-                "Поясни, як підвищити ATS-сумісність українською. "
-                "За потреби зазнач, як адаптувати формат/розділи відповідно до очікувань роботодавців в Україні."
-            ),
-            "Відповідай українською мовою.",
-        )
-    else:
-        return (
-            "Target the United Kingdom job market.",
-            (
-                "Use UK CV conventions (no photo/date of birth, concise bullet points, UK spelling, "
-                "ATS-friendly formatting, clear impact metrics). "
-                "If appropriate, reference UK norms (e.g., responsibilities vs achievements, tailored skills)."
-            ),
-            "Respond in English (UK).",
-        )
+if lang == "uk":
+return (
+"Орієнтуйся на ринок праці України.",
+(
+"Враховуй звичні для України підходи до резюме (може бути 1–2 сторінки, "
+"обережно з особистими даними; сфокусуйся на досягненнях і релевантних навичках). "
+"Поясни, як підвищити ATS-сумісність українською. "
+"За потреби зазнач, як адаптувати формат/розділи відповідно до очікувань роботодавців в Україні."
+),
+"Відповідай українською мовою.",
+)
+else:
+return (
+"Target the United Kingdom job market.",
+(
+"Use UK CV conventions (no photo/date of birth, concise bullet points, UK spelling, "
+"ATS-friendly formatting, clear impact metrics). "
+"If appropriate, reference UK norms (e.g., responsibilities vs achievements, tailored skills)."
+),
+"Respond in English (UK).",
+)
+
 
 def extract_text_from_file(file_path):
-    ext = file_path.lower()
-    if ext.endswith(".pdf"):
-        with fitz.open(file_path) as doc:
-            return "\n".join([page.get_text() for page in doc])
-    elif ext.endswith(".docx"):
-        try:
-            from docx import Document
-            doc = Document(file_path)
-            return "\n".join([p.text for p in doc.paragraphs])
-        except Exception as e:
-            return f"[❌ Error reading DOCX file: {e}]"
-    else:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception as e:
-            return f"[❌ Error reading TXT file: {e}]"
+ext = file_path.lower()
+if ext.endswith(".pdf"):
+with fitz.open(file_path) as doc:
+return "\n".join([page.get_text() for page in doc])
+elif ext.endswith(".docx"):
+try:
+from docx import Document
+doc = Document(file_path)
+return "\n".join([p.text for p in doc.paragraphs])
+except Exception as e:
+return f"[❌ Error reading DOCX file: {e}]"
+else:
+try:
+with open(file_path, "r", encoding="utf-8") as f:
+return f.read()
+except Exception as e:
+return f"[❌ Error reading TXT file: {e}]"
+
 
 def safe_take(s: str, max_chars: int = 120_000) -> str:
-    return s if len(s) <= max_chars else s[:max_chars] + "\n\n[...truncated for processing...]"
+return s if len(s) <= max_chars else s[:max_chars] + "\n\n[...truncated for processing...]"
+
 
 def universal_uk_warning(lang: str) -> str:
-    if lang == "en":
-        return (
-            "⚠️ Note: If your CV includes a photo or personal data such as date of birth, gender, or marital status, "
-            "we recommend removing them for applications in the UK job market."
-        )
-    return ""
-
-async def _ask_gpt(prompt: str) -> str:
-    resp = await client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-    )
-    return resp.choices[0].message.content.strip() if resp.choices else "❌ GPT did not return a valid response."
-
-def generate_pdf_report(text: str, output_path: str):
-    styles = getSampleStyleSheet()
-    story = []
-    for part in text.split("\n\n"):
-        story.append(Paragraph(part.strip().replace("\n", "<br/>"), styles["Normal"]))
-        story.append(Spacer(1, 12))
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    doc = SimpleDocTemplate(output_path, pagesize=A4)
-    doc.build(story)
-    return output_path
-
-def build_output_path(user_id: str, prefix: str = "report") -> str:
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"results/{user_id}/{prefix}_{ts}.pdf"
+if lang == "en":
+return (
+return f"results/{user_id}/{prefix}_{ts}.pdf"
 
 def _build_full_prompt(content: str, market_note: str, style_note: str, reply_lang: str) -> str:
     return f"""
@@ -299,9 +280,9 @@ Resume:
 
 # NEW: edit_section for one-by-one editing
 async def edit_section(section_name: str, current_text: str) -> str:
-    prompt = (
-        f"Please improve the following section of a CV. Keep it concise and professional. "
-        f"Only rewrite the text, do not return explanations.\n\n"
-        f"Section: {section_name}\n\n{current_text}"
-    )
-    return await _ask_gpt(prompt)
+prompt = (
+f"Please improve the following section of a CV. Keep it concise and professional. "
+f"Only rewrite the text, do not return explanations.\n\n"
+f"Section: {section_name}\n\n{current_text}"
+)
+return await _ask_gpt(prompt)
