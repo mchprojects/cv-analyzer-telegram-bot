@@ -1,11 +1,10 @@
-# CVise Telegram Bot Project (Updated with .docx support)
+# CVise Telegram Bot Project (Fixed ImportError: DocumentMimeType)
 
-# --- bot.py (updated) ---
+# --- bot.py (updated without DocumentMimeType) ---
 import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.constants import DocumentMimeType
 from analyzer import (
     extract_text_from_file,
     analyze_resume,
@@ -216,7 +215,7 @@ def main():
     doc_filter = (
         filters.Document.MimeType("application/pdf") |
         filters.Document.MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.document") |
-        filters.Document.TEXT
+        filters.Document.FileExtension("txt")
     )
 
     app.add_handler(CommandHandler("start", start))
