@@ -259,45 +259,47 @@ Resume:
     generate_pdf_report(response, output_path)
     return response, output_path
 
-async def step_by_step_review(file_path):
-    content = safe_take(extract_text_from_file(file_path))
-    lang = detect_language(content)
-    market_note, style_note, reply_lang = market_and_style(lang)
+async def step_by_step_review(content):
+lang = detect_language(content)
+market_note, style_note, reply_lang = market_and_style(lang)
+proactive_warning = universal_uk_warning(lang)
 
-    prompt = f"""
-You are an expert CV reviewer and career coach.
+
+prompt = f"""
+You are a professional CV writing coach.
 {market_note}
 {style_note}
 {reply_lang}
 
 
-Provide a step-by-step analysis of the following CV.
-Split your analysis clearly by these sections:
-
-
-1. Profile/Summary
-2. Skills & Tools
-3. Professional Experience
-4. Education
-5. Format & Structure
-
-
+Your task is to break down the following resume into sections and give feedback on each section separately. Use short and actionable tips.
 For each section:
-- Summarise its strengths
-- List issues or areas for improvement
-- Provide improved or corrected examples
+- Give a short evaluation.
+- Point out specific issues.
+- Offer improvements with examples.
 
 
-Conclude with:
-- 3-5 improvement recommendations
-- Score per section (1–10) and overall score (xx/100)
+Sections:
+1. Summary or Profile
+2. Skills / Competencies
+3. Work Experience
+4. Education
+5. Additional Sections (Certifications, Languages, etc)
+6. Formatting & Layout
+7. Final Suggestions and Score
 
 
-CV:
+Resume:
 {content}
 """
+
+
+async def _run():
 response = await _ask_gpt(prompt)
 full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-output_path = build_output_path("user", "step_by_step_review")
+output_path = build_output_path("user", "step_by_step")
 generate_pdf_report(full_response, output_path)
 return full_response, output_path
+
+
+return _run()
