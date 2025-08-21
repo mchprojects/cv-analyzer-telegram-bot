@@ -1,3 +1,5 @@
+# --- analyzer.py (FULL VERSION: PDF logic for all modes) ---
+
 import os
 import re
 import fitz  # PyMuPDF
@@ -11,7 +13,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
 def detect_language(text: str) -> str:
     if not text:
         return "en"
@@ -20,7 +21,6 @@ def detect_language(text: str) -> str:
     if re.search(r"[ІіЇїЄєҐґ]", text):
         return "uk"
     return "uk" if cyr > lat else "en"
-
 
 def market_and_style(lang: str):
     if lang == "uk":
@@ -45,7 +45,6 @@ def market_and_style(lang: str):
             "Respond in English (UK).",
         )
 
-
 def extract_text_from_file(file_path):
     ext = file_path.lower()
     if ext.endswith(".pdf"):
@@ -65,10 +64,8 @@ def extract_text_from_file(file_path):
         except Exception as e:
             return f"[❌ Error reading TXT file: {e}]"
 
-
 def safe_take(s: str, max_chars: int = 120_000) -> str:
     return s if len(s) <= max_chars else s[:max_chars] + "\n\n[...truncated for processing...]"
-
 
 def universal_uk_warning(lang: str) -> str:
     if lang == "en":
@@ -78,7 +75,6 @@ def universal_uk_warning(lang: str) -> str:
         )
     return ""
 
-
 async def _ask_gpt(prompt: str) -> str:
     resp = await client.chat.completions.create(
         model="gpt-4",
@@ -87,97 +83,20 @@ async def _ask_gpt(prompt: str) -> str:
     )
     return resp.choices[0].message.content.strip() if resp.choices else "❌ GPT did not return a valid response."
 
+def generate_pdf_report(text: str, output_path: str):
+    styles = getSampleStyleSheet()
+    story = []
+    for part in text.split("\n\n"):
+        story.append(Paragraph(part.strip().replace("\n", "<br/>"), styles["Normal"]))
+        story.append(Spacer(1, 12))
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    doc = SimpleDocTemplate(output_path, pagesize=A4)
+    doc.build(story)
+    return output_path
 
-async def analyze_resume(file_path):
-    content = safe_take(extract_text_from_file(file_path))
-    lang = detect_language(content)
-    market_note, style_note, reply_lang = market_and_style(lang)
-    proactive_warning = universal_uk_warning(lang)
-
-    prompt = _build_full_prompt(content, market_note, style_note, reply_lang)
-    response = await _ask_gpt(prompt)
-    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
-
-
-async def analyze_for_vacancy(resume_path, vacancy_text):
-    resume_content = safe_take(extract_text_from_file(resume_path))
-    lang = detect_language(resume_content)
-    market_note, style_note, reply_lang = market_and_style(lang)
-    proactive_warning = universal_uk_warning(lang)
-
-    prompt = f"""
-You are a senior HR consultant and career advisor with expertise in aligning CVs to job roles.
-{market_note}
-{style_note}
-{reply_lang}
-
-Task:
-- Compare the following resume to the job vacancy.
-- Identify alignment and gaps.
-- Recommend edits to make the CV a better match (especially in skills and experience).
-- Rephrase or add bullet points to fit the job.
-- Evaluate formatting and language alignment with market expectations.
-- At the end, rate the resume by categories and provide an overall score, just like this:
-
-📊 CV Score Breakdown:
-• Summary/Profile: X / 10
-• Skills & Qualifications: X / 10
-• Experience: X / 10
-• Education: X / 10
-• Formatting & ATS: X / 10
-
-🎯 Overall Score: XX / 100
-
-📌 Recommend 3–5 actions to increase alignment and success.
-
----
-Resume:
-{resume_content}
-
----
-Job Vacancy:
-{vacancy_text}
-"""
-    response = await _ask_gpt(prompt)
-    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
-
-
-async def give_hr_feedback(resume_path):
-    content = safe_take(extract_text_from_file(resume_path))
-    lang = detect_language(content)
-    market_note, style_note, reply_lang = market_and_style(lang)
-    proactive_warning = universal_uk_warning(lang)
-
-    prompt = f"""
-You are a professional career coach helping job seekers improve their CVs.
-{market_note}
-{style_note}
-{reply_lang}
-
-Provide a brief but focused HR-style critique of this CV:
-- What is strong?
-- What is missing?
-- Formatting and clarity issues
-- Suggestions to improve effectiveness for the job market above
-
-Rate the resume using:
-📊 CV Score Breakdown:
-• Summary/Profile: X / 10
-• Skills & Qualifications: X / 10
-• Experience: X / 10
-• Education: X / 10
-• Formatting & ATS: X / 10
-
-🎯 Overall Score: XX / 100
-
-📌 List 3–5 practical improvement tips.
-
-Resume:
-{content}
-"""
-    response = await _ask_gpt(prompt)
-    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
-
+def build_output_path(user_id: str, prefix: str = "report") -> str:
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"results/{user_id}/{prefix}_{ts}.pdf"
 
 def _build_full_prompt(content: str, market_note: str, style_note: str, reply_lang: str) -> str:
     return f"""
@@ -221,37 +140,123 @@ Resume:
 {content}
 """
 
+async def analyze_resume(file_path):
+    content = safe_take(extract_text_from_file(file_path))
+    lang = detect_language(content)
+    market_note, style_note, reply_lang = market_and_style(lang)
+    proactive_warning = universal_uk_warning(lang)
 
-def generate_pdf_report(text: str, output_path: str):
-    styles = getSampleStyleSheet()
-    story = []
-    for part in text.split("\n\n"):
-        story.append(Paragraph(part.strip().replace("\n", "<br/>"), styles["Normal"]))
-        story.append(Spacer(1, 12))
+    prompt = _build_full_prompt(content, market_note, style_note, reply_lang)
+    response = await _ask_gpt(prompt)
+    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    doc = SimpleDocTemplate(output_path, pagesize=A4)
-    doc.build(story)
-    return output_path
+    output_path = build_output_path("user", "cv_analysis")
+    generate_pdf_report(full_response, output_path)
+    return full_response, output_path
 
+async def analyze_for_vacancy(resume_path, vacancy_text):
+    resume_content = safe_take(extract_text_from_file(resume_path))
+    lang = detect_language(resume_content)
+    market_note, style_note, reply_lang = market_and_style(lang)
+    proactive_warning = universal_uk_warning(lang)
 
-def build_output_path(user_id: str, prefix: str = "report") -> str:
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"results/{user_id}/{prefix}_{ts}.pdf"
+    prompt = f"""
+You are a senior HR consultant and career advisor with expertise in aligning CVs to job roles.
+{market_note}
+{style_note}
+{reply_lang}
 
+Task:
+- Compare the following resume to the job vacancy.
+- Identify alignment and gaps.
+- Recommend edits to make the CV a better match (especially in skills and experience).
+- Rephrase or add bullet points to fit the job.
+- Evaluate formatting and language alignment with market expectations.
+- At the end, rate the resume by categories and provide an overall score, just like this:
+
+📊 CV Score Breakdown:
+• Summary/Profile: X / 10
+• Skills & Qualifications: X / 10
+• Experience: X / 10
+• Education: X / 10
+• Formatting & ATS: X / 10
+
+🎯 Overall Score: XX / 100
+
+📌 Recommend 3–5 actions to increase alignment and success.
+
+---
+Resume:
+{resume_content}
+
+---
+Job Vacancy:
+{vacancy_text}
+"""
+    response = await _ask_gpt(prompt)
+    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    output_path = build_output_path("user", "cv_match")
+    generate_pdf_report(full_response, output_path)
+    return full_response, output_path
+
+async def give_hr_feedback(resume_path):
+    content = safe_take(extract_text_from_file(resume_path))
+    lang = detect_language(content)
+    market_note, style_note, reply_lang = market_and_style(lang)
+    proactive_warning = universal_uk_warning(lang)
+
+    prompt = f"""
+You are a professional career coach helping job seekers improve their CVs.
+{market_note}
+{style_note}
+{reply_lang}
+
+Provide a brief but focused HR-style critique of this CV:
+- What is strong?
+- What is missing?
+- Formatting and clarity issues
+- Suggestions to improve effectiveness for the job market above
+
+Rate the resume using:
+📊 CV Score Breakdown:
+• Summary/Profile: X / 10
+• Skills & Qualifications: X / 10
+• Experience: X / 10
+• Education: X / 10
+• Formatting & ATS: X / 10
+
+🎯 Overall Score: XX / 100
+
+📌 List 3–5 practical improvement tips.
+
+Resume:
+{content}
+"""
+    response = await _ask_gpt(prompt)
+    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    output_path = build_output_path("user", "hr_feedback")
+    generate_pdf_report(full_response, output_path)
+    return full_response, output_path
 
 async def generate_cover_letter(vacancy_text, resume_text):
     prompt = f"""
-You are a professional career coach and CV expert.
+You are an experienced UK-based hiring manager helping candidates generate strong, personalised cover letters.
+Match the applicant's CV to the vacancy and write a professional, persuasive letter that:
+- Starts with a strong opening
+- Explains how the candidate fits the role (skills, experience, results)
+- Ends with a call to action
 
-Write a cover letter tailored to the following job vacancy and resume. 
-Make it formal but personalised. Avoid clichés. Emphasise fit and motivation. 
-Use UK English if the CV is in English.
+Write in British English and keep it to 3 paragraphs.
 
-Vacancy:
+---
+Job Vacancy:
 {vacancy_text}
 
+---
 Resume:
 {resume_text}
 """
-    return await _ask_gpt(prompt)
+    response = await _ask_gpt(prompt)
+    output_path = build_output_path("user", "cover_letter")
+    generate_pdf_report(response, output_path)
+    return response, output_path

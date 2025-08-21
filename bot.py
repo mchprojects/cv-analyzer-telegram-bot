@@ -1,32 +1,30 @@
-# --- bot.py (з PDF на запит) ---
-
 import os
 import logging
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+    ContextTypes,
+)
 from analyzer import (
     extract_text_from_file,
     analyze_resume,
     analyze_for_vacancy,
     give_hr_feedback,
     generate_cover_letter,
-    generate_pdf_report,
-    build_output_path
 )
-
-# Логування
-logging.basicConfig(level=logging.INFO)
-
-# Токен із .env
 from dotenv import load_dotenv
+
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Стан користувача
-user_state = {}
-user_last_result = {}
+logging.basicConfig(level=logging.INFO)
 
-# 🔒 Доступ лише для дозволених користувачів + адмін
+user_state = {}
+
 ADMIN_ID = 6929149032
 ALLOWED_USERS = {ADMIN_ID}
 DENY_MSG = (
@@ -52,17 +50,14 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
             f"- Message: `{update.message.text if update.message else 'n/a'}`"
         )
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode="Markdown")
-        logging.warning(f"🚨 Unauthorized access attempt! {format_user(user)}")
     except Exception as e:
         logging.error(f"Failed to notify admin about unauthorized access: {e}")
 
-# Меню
 markup = ReplyKeyboardMarkup(
     [["📄 CV analysis", "🎯 CV and job match analysis"], ["🧠 HR Expert Advice", "💌 Generate Cover Letter"]],
     resize_keyboard=True
 )
 
-# Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
@@ -70,30 +65,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(DENY_MSG)
         return
 
-    await update.message.reply_text(
-        "Hi! Please choose what you’d like to do:", reply_markup=markup
-    )
+    await update.message.reply_text("Hi! Please choose what you’d like to do:", reply_markup=markup)
 
-# Команда /pdf
-async def send_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_allowed(user_id):
-        await notify_admin_about_unauthorized(update, context)
-        await update.message.reply_text(DENY_MSG)
-        return
-
-    if user_id not in user_last_result:
-        await update.message.reply_text("⚠️ No previous result found. Please submit your CV first.")
-        return
-
-    try:
-        output_path = build_output_path(str(user_id))
-        generate_pdf_report(user_last_result[user_id], output_path)
-        await update.message.reply_document(document=open(output_path, "rb"), filename="CVise_Report.pdf")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Failed to generate PDF: {e}")
-
-# Обробка текстових повідомлень (вибір з меню)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
@@ -118,7 +91,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Please select a menu option 👇", reply_markup=markup)
 
-# Обробка файлів
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
+    text = update.message.text
+    file_path = f"input_{update.message.message_id}.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+    await process_input(update, context, file_path)
+
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
@@ -137,9 +123,13 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await process_input(update, context, file_path)
 
-# Обробка вхідних даних
 async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: str):
     user_id = update.effective_user.id
+    if not is_allowed(user_id):
+        await notify_admin_about_unauthorized(update, context)
+        await update.message.reply_text(DENY_MSG)
+        return
+
     mode = user_state.get(user_id, {}).get("mode")
 
     if not mode:
@@ -147,9 +137,10 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         return
 
     try:
+        await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+
         if mode == "resume":
-            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-            result = await analyze_resume(file_path)
+            result_text, pdf_path = await analyze_resume(file_path)
 
         elif mode == "vacancy":
             if "vacancy" not in user_state[user_id]:
@@ -160,15 +151,11 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 resume_path = file_path
                 vacancy_path = user_state[user_id]["vacancy"]
                 vacancy_text = extract_text_from_file(vacancy_path)
-                resume_text = extract_text_from_file(resume_path)
-                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-                result = await analyze_for_vacancy(vacancy_text, resume_text)
+                result_text, pdf_path = await analyze_for_vacancy(resume_path, vacancy_text)
                 del user_state[user_id]["vacancy"]
 
         elif mode == "consult":
-            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-            resume_text = extract_text_from_file(file_path)
-            result = await give_hr_feedback(resume_text)
+            result_text, pdf_path = await give_hr_feedback(file_path)
 
         elif mode == "cover":
             if "vacancy" not in user_state[user_id]:
@@ -180,23 +167,26 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 vacancy_path = user_state[user_id]["vacancy"]
                 vacancy_text = extract_text_from_file(vacancy_path)
                 resume_text = extract_text_from_file(resume_path)
-                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-                result = await generate_cover_letter(vacancy_text, resume_text)
+                result_text, pdf_path = await generate_cover_letter(vacancy_text, resume_text)
                 del user_state[user_id]["vacancy"]
+
         else:
-            result = "❌ Unknown mode. Select an option from the menu 👇"
+            result_text = "❌ Unknown mode. Select an option from the menu 👇"
+            pdf_path = None
 
-        user_last_result[user_id] = result
+        user_state[user_id]["last_pdf"] = pdf_path
 
-        for chunk in split_text(result):
+        for chunk in split_text(result_text):
             await update.message.reply_text(chunk, reply_markup=markup)
 
-        await update.message.reply_text("📝 If you'd like to download this result as PDF, type /pdf")
+        if pdf_path:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💾 Download PDF version", callback_data="send_pdf")]
+            ])
+            await update.message.reply_text("Would you like to save the result as a PDF?", reply_markup=keyboard)
 
     except Exception as e:
         await update.message.reply_text(f"Oops—something went wrong. Please try again later: {e}", reply_markup=markup)
-
-# Розділення довгого тексту
 
 def split_text(text, max_length=4000):
     lines = text.split('\n')
@@ -212,7 +202,15 @@ def split_text(text, max_length=4000):
         chunks.append(current)
     return chunks
 
-# Запуск
+async def handle_pdf_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    pdf_path = user_state.get(user_id, {}).get("last_pdf")
+    if pdf_path and os.path.exists(pdf_path):
+        await context.bot.send_document(chat_id=update.effective_chat.id, document=open(pdf_path, "rb"))
+    else:
+        await query.edit_message_text("❌ PDF not found or expired.")
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -224,9 +222,10 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("pdf", send_pdf))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     app.add_handler(MessageHandler(doc_filter, handle_file))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(CallbackQueryHandler(handle_pdf_request, pattern="send_pdf"))
 
     app.run_polling()
 
