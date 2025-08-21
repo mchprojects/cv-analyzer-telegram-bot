@@ -286,4 +286,4 @@ Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    return response
+    return full_response, output_path
