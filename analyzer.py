@@ -1,5 +1,3 @@
-# --- analyzer.py: CV Score Breakdown logic + PDF export ---
-
 import os
 import re
 import fitz  # PyMuPDF
@@ -90,7 +88,7 @@ async def _ask_gpt(prompt: str) -> str:
     return resp.choices[0].message.content.strip() if resp.choices else "❌ GPT did not return a valid response."
 
 
-async def analyze_resume(file_path, return_lang=False):
+async def analyze_resume(file_path):
     content = safe_take(extract_text_from_file(file_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -98,11 +96,10 @@ async def analyze_resume(file_path, return_lang=False):
 
     prompt = _build_full_prompt(content, market_note, style_note, reply_lang)
     response = await _ask_gpt(prompt)
-    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-    return (result, lang) if return_lang else result
+    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
 
 
-async def analyze_for_vacancy(resume_path, vacancy_text, return_lang=False):
+async def analyze_for_vacancy(resume_path, vacancy_text):
     resume_content = safe_take(extract_text_from_file(resume_path))
     lang = detect_language(resume_content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -142,11 +139,10 @@ Job Vacancy:
 {vacancy_text}
 """
     response = await _ask_gpt(prompt)
-    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-    return (result, lang) if return_lang else result
+    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
 
 
-async def give_hr_feedback(resume_path, return_lang=False):
+async def give_hr_feedback(resume_path):
     content = safe_take(extract_text_from_file(resume_path))
     lang = detect_language(content)
     market_note, style_note, reply_lang = market_and_style(lang)
@@ -180,8 +176,7 @@ Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    result = f"{proactive_warning}\n\n{response}" if proactive_warning else response
-    return (result, lang) if return_lang else result
+    return (f"{proactive_warning}\n\n{response}" if proactive_warning else response), lang
 
 
 def _build_full_prompt(content: str, market_note: str, style_note: str, reply_lang: str) -> str:
@@ -243,3 +238,20 @@ def generate_pdf_report(text: str, output_path: str):
 def build_output_path(user_id: str, prefix: str = "report") -> str:
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"results/{user_id}/{prefix}_{ts}.pdf"
+
+
+async def generate_cover_letter(vacancy_text, resume_text):
+    prompt = f"""
+You are a professional career coach and CV expert.
+
+Write a cover letter tailored to the following job vacancy and resume. 
+Make it formal but personalised. Avoid clichés. Emphasise fit and motivation. 
+Use UK English if the CV is in English.
+
+Vacancy:
+{vacancy_text}
+
+Resume:
+{resume_text}
+"""
+    return await _ask_gpt(prompt)
