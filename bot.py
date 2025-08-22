@@ -205,7 +205,7 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
 
     await context.bot.send_message(
         chat_id=user_id,
-        text=f"✏️ Please send your revised version for the *{section}* section.",
+        text=f✏️ Please send your revised version for the *{section}* section.",
         parse_mode="Markdown"
     )
 
