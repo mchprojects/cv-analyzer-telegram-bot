@@ -141,7 +141,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 current_section = user_step_sections[user_id].pop(0)
                 user_state[user_id]["current_section"] = current_section
 
-                section_label = current_section.split("\n", 1)[0].strip("* ")
+                section_label = current_section.split("\n", 1)[0].strip("* ").lower().replace(" ", "_")
                 keyboard = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{section_label}"),
@@ -188,11 +188,11 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
     _, decision, section = data.split("_", 2)
 
     if decision == "no":
-        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section}*.", parse_mode="Markdown")
+        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section.replace('_', ' ').title()}*.", parse_mode="Markdown")
     else:
         await context.bot.send_message(
             chat_id=user_id,
-            text=f"✏️ Please send your revised version for the *{section}* section.",
+            text=f"✏️ Please send your revised version for the *{section.replace('_', ' ').title()}* section.",
             parse_mode="Markdown"
         )
         user_state[user_id]["awaiting_edit"] = section
@@ -202,7 +202,7 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
     if user_step_sections[user_id]:
         next_section = user_step_sections[user_id].pop(0)
         user_state[user_id]["current_section"] = next_section
-        next_label = next_section.split("\n", 1)[0].strip("* ")
+        next_label = next_section.split("\n", 1)[0].strip("* ").lower().replace(" ", "_")
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{next_label}"),
