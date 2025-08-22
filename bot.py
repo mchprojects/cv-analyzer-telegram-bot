@@ -129,9 +129,24 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 else:
                     text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
         elif mode == "step":
-            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
-            full_response, pdf_path = await step_by_step_review(file_path)
+            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
+            sections, pdf_path = await step_by_step_review(file_path)
             user_results[user_id] = pdf_path
+	    user_step_sections[user_id] = sections
+# Отримаємо перший блок для показу користувачу
+key, label, current = user_step_sections[user_id].pop(0)
+user_state[user_id]["current_section"] = key
+user_state[user_id]["current_text"] = current
+
+
+keyboard = InlineKeyboardMarkup([
+[
+InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{key}"),
+InlineKeyboardButton("No, skip", callback_data=f"edit_no_{key}")
+]
+])
+await update.message.reply_text(current, reply_markup=keyboard)
+return
 
             section_chunks = full_response.split("\n\n")
             user_step_sections[user_id] = section_chunks[1:]  # skip header
