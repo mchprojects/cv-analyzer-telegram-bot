@@ -172,13 +172,14 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
             elif mode == "step":
                 text_result, pdf_path = await step_by_step_review(file_path)
             else:
-                text_result, pdf_path = ("❌ Unknown mode. Select an option from the menu.", None)
+                text_result, pdf_path = ("\u274c Unknown mode. Select an option from the menu.", None)
+
+        user_results[user_id] = text_result
 
         for chunk in split_text(text_result):
             await update.message.reply_text(chunk, reply_markup=markup)
 
         if pdf_path:
-            user_results[user_id] = pdf_path
             keyboard = InlineKeyboardMarkup.from_button(
                 InlineKeyboardButton("Download PDF version", callback_data="get_pdf")
             )
@@ -197,6 +198,26 @@ async def handle_pdf_request(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_document(chat_id=user_id, document=open(pdf_path, "rb"))
     else:
         await context.bot.send_message(chat_id=user_id, text="❌ PDF file not found. Please try again.")
+
+async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    data = query.data  # e.g., "edit_yes_summary"
+    _, decision, section = data.split("_")
+
+    if decision == "no":
+        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section.capitalize()}*.", parse_mode="Markdown")
+        return
+
+    user_state[user_id]["edit_section"] = section
+    user_state[user_id]["original_text"] = "...original section content here..."  # Needs to be extracted from stored resume
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=f"✏️ Please send your revised version for the *{section}* section.",
+        parse_mode="Markdown"
+    )
 
 def split_text(text, max_length=4000):
     lines = text.split('\n')
@@ -223,6 +244,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_pdf_request, pattern="get_pdf"))
+    app.add_handler(CallbackQueryHandler(handle_edit_decision, pattern="^edit_(yes|no)_"))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     app.add_handler(MessageHandler(doc_filter, handle_file))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))

@@ -266,40 +266,44 @@ async def step_by_step_review(file_path):
         market_note, style_note, reply_lang = market_and_style(lang)
 
         prompt = f"""
-You are a senior career coach.
+You are a professional CV coach.
 {market_note}
 {style_note}
 {reply_lang}
 
-Perform a **step-by-step** CV review.
-- Review and comment each section one-by-one.
-- Ask the user if they would like to edit/improve that section.
-- Then move to the next section.
 
-Sections:
+Do a **step-by-step** interactive CV review. After each section:
+• Give short feedback.
+• Ask: "Would you like to edit this section now?" (with Yes/No buttons).
+• Use clear section labels:
 1. Summary/Profile
 2. Skills/Qualifications
 3. Experience
 4. Education
 5. Formatting & ATS
 
-Include practical improvement suggestions and examples.
+
+Do **not** move to the next section until user answers Yes/No.
+Keep your output clean and structured.
+
+
 Resume:
 {content}
 """
-        response = await _ask_gpt(prompt)
-        full_response = response
-        output_path = build_output_path("user", "step_by_step")
-        generate_pdf_report(full_response, output_path)
-        return full_response, output_path
+response = await _ask_gpt(prompt)
+full_response = response
+output_path = build_output_path("user", "step_by_step")
+generate_pdf_report(full_response, output_path)
+return full_response, output_path
 
-    return await _run()
 
-# NEW: edit_section for one-by-one editing
+return await _run()
+
+
 async def edit_section(section_name: str, current_text: str) -> str:
-    prompt = (
-        f"Please improve the following section of a CV. Keep it concise and professional. "
-        f"Only rewrite the text, do not return explanations.\n\n"
-        f"Section: {section_name}\n\n{current_text}"
-    )
-    return await _ask_gpt(prompt)
+prompt = (
+f"Please improve the following section of a CV. Keep it concise and professional. "
+f"Only rewrite the text, do not return explanations.\n\n"
+f"Section: {section_name}\n\n{current_text}"
+)
+return await _ask_gpt(prompt)
