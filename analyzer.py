@@ -11,6 +11,16 @@ from reportlab.lib.styles import getSampleStyleSheet
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+SECTION_KEYS = {
+    "summary/profile": "sum",
+    "skills/qualifications": "skills",
+    "experience": "exp",
+    "education": "edu",
+    "formatting & ats": "fmt"
+}
+
+SECTION_LABELS = {v: k.title() for k, v in SECTION_KEYS.items()}
+
 def detect_language(text: str) -> str:
     if not text:
         return "en"
@@ -270,27 +280,6 @@ You are a professional CV coach.
 {style_note}
 {reply_lang}
 
-SECTION_KEYS = {
-    "summary/profile": "sum",
-    "skills/qualifications": "skills",
-    "experience": "exp",
-    "education": "edu",
-    "formatting & ats": "fmt"
-}
-
-SECTION_LABELS = {v: k.title() for k, v in SECTION_KEYS.items()}
-
-async def step_by_step_review(file_path):
-    content = safe_take(extract_text_from_file(file_path))
-    lang = detect_language(content)
-    market_note, style_note, reply_lang = market_and_style(lang)
-
-    prompt = f"""
-You are a professional CV coach.
-{market_note}
-{style_note}
-{reply_lang}
-
 Do a **step-by-step** interactive CV review. After each section:
 - Give short feedback.
 - Use this wording: \n\n\"Would you like to edit this section now?\"
@@ -323,3 +312,10 @@ Resume:
     output_path = build_output_path("user", "step_by_step")
     generate_pdf_report(response, output_path)
     return parsed_sections, output_path
+
+def edit_section(section_name: str, current_text: str) -> str:
+    prompt = (
+        f"Please improve the following section of a CV. Keep it concise and professional. "
+        f"Only rewrite the text, do not return explanations.\n\nSection: {section_name}\n\n{current_text}"
+    )
+    return prompt
