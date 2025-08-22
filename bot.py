@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from analyzer import (
     extract_text_from_file,
@@ -12,18 +12,11 @@ from analyzer import (
     edit_section
 )
 
-# Логування
-logging.basicConfig(level=logging.INFO)
-
-# Токен із .env
 from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Стан користувача
-user_state = {}
-user_results = {}
-user_step_sections = {}
+logging.basicConfig(level=logging.INFO)
 
 ADMIN_ID = 6929149032
 ALLOWED_USERS = {ADMIN_ID}
@@ -54,6 +47,10 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
     except Exception as e:
         logging.error(f"Failed to notify admin about unauthorized access: {e}")
 
+user_state = {}
+user_results = {}
+user_step_sections = {}
+
 markup = ReplyKeyboardMarkup(
     [["CV analysis", "CV and job match analysis"], ["HR Expert Advice", "Generate Cover Letter"], ["Step-by-step CV review"]],
     resize_keyboard=True
@@ -65,7 +62,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await notify_admin_about_unauthorized(update, context)
         await update.message.reply_text(DENY_MSG)
         return
-
     await update.message.reply_text("Hi! Please choose what you’d like to do:", reply_markup=markup)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,9 +93,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Please select a valid menu option.", reply_markup=markup)
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pass  # To be implemented if needed.
-
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
@@ -115,20 +108,11 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await context.bot.get_file(document.file_id)
     file_path = f"{document.file_id}_{document.file_name}"
     await file.download_to_drive(file_path)
-
     await process_input(update, context, file_path)
 
 async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: str):
     user_id = update.effective_user.id
-    if not is_allowed(user_id):
-        await notify_admin_about_unauthorized(update, context)
-        await update.message.reply_text(DENY_MSG)
-        return
-
     mode = user_state.get(user_id, {}).get("mode")
-    if not mode:
-        await update.message.reply_text("Select an option from the menu below:", reply_markup=markup)
-        return
 
     try:
         if mode == "vacancy" or mode == "cover":
@@ -137,77 +121,102 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 await update.message.reply_text("Thank you! Please send your CV now")
                 return
             else:
-                await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
+                await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
                 resume_path = file_path
                 vacancy_path = user_state[user_id].pop("vacancy")
                 if mode == "vacancy":
                     text_result, pdf_path = await analyze_for_vacancy(resume_path, extract_text_from_file(vacancy_path))
                 else:
                     text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
-        else:
-            if mode == "step":
-                await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
-                result, pdf_path = await step_by_step_review(file_path)
-                user_results[user_id] = pdf_path
-                for chunk in split_text(result):
-                    await update.message.reply_text(chunk)
-                keyboard = InlineKeyboardMarkup.from_button(
-                    InlineKeyboardButton("Download PDF version", callback_data="get_pdf")
-                )
-                await update.message.reply_text("You can download the result as PDF:", reply_markup=keyboard)
-                return
+        elif mode == "step":
+            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
+            full_response, pdf_path = await step_by_step_review(file_path)
+            user_results[user_id] = pdf_path
 
-            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
+            section_chunks = full_response.split("\n\n")
+            user_step_sections[user_id] = section_chunks[1:]  # exclude 0 - usually note
+            await update.message.reply_text(section_chunks[0])  # general intro / first block
+
+            if user_step_sections[user_id]:
+                current_section = user_step_sections[user_id].pop(0)
+                user_state[user_id]["current_section"] = current_section
+
+                section_label = current_section.split("\n", 1)[0].strip("* ")
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{section_label}"),
+                        InlineKeyboardButton("No, skip", callback_data=f"edit_no_{section_label}")
+                    ]
+                ])
+                await update.message.reply_text(current_section, reply_markup=keyboard)
+                return
+        else:
+            await update.message.reply_text("⌛ Processing your request... This may take 10–15 seconds")
             if mode == "resume":
                 text_result, pdf_path = await analyze_resume(file_path)
             elif mode == "consult":
                 text_result, pdf_path = await give_hr_feedback(file_path)
             else:
-                text_result, pdf_path = ("\u274c Unknown mode. Select an option from the menu.", None)
+                text_result, pdf_path = ("❌ Unknown mode. Please select again.", None)
 
-            user_results[user_id] = text_result
-            for chunk in split_text(text_result):
-                await update.message.reply_text(chunk, reply_markup=markup)
-            if pdf_path:
-                keyboard = InlineKeyboardMarkup.from_button(
-                    InlineKeyboardButton("Download PDF version", callback_data="get_pdf")
-                )
-                await update.message.reply_text("You can download the result as PDF:", reply_markup=keyboard)
+        user_results[user_id] = pdf_path if pdf_path else text_result
+        for chunk in split_text(text_result):
+            await update.message.reply_text(chunk)
+
+        if pdf_path:
+            keyboard = InlineKeyboardMarkup.from_button(InlineKeyboardButton("Download PDF version", callback_data="get_pdf"))
+            await update.message.reply_text("You can download the result as PDF:", reply_markup=keyboard)
 
     except Exception as e:
-        await update.message.reply_text(f"Oops—something went wrong. Please try again later: {e}", reply_markup=markup)
+        await update.message.reply_text(f"❌ Something went wrong. Please try again later: {e}")
 
 async def handle_pdf_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-
     pdf_path = user_results.get(user_id)
     if pdf_path and os.path.exists(pdf_path):
         await context.bot.send_document(chat_id=user_id, document=open(pdf_path, "rb"))
     else:
-        await context.bot.send_message(chat_id=user_id, text="❌ PDF file not found. Please try again.")
+        await context.bot.send_message(chat_id=user_id, text="❌ PDF file not found.")
 
 async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     data = query.data
-    _, decision, section = data.split("_")
+    _, decision, section = data.split("_", 2)
 
     if decision == "no":
-        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section.capitalize()}*.", parse_mode="Markdown")
-        # TODO: Move to next section logic here
+        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section}*.", parse_mode="Markdown")
+    else:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"✏️ Please send your revised version for the *{section}* section.",
+            parse_mode="Markdown"
+        )
+        user_state[user_id]["awaiting_edit"] = section
         return
 
-    user_state[user_id]["edit_section"] = section
-    user_state[user_id]["original_text"] = "...original section content here..."  # Placeholder
+    # Move to next step
+    if user_step_sections[user_id]:
+        next_section = user_step_sections[user_id].pop(0)
+        user_state[user_id]["current_section"] = next_section
+        next_label = next_section.split("\n", 1)[0].strip("* ")
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{next_label}"),
+                InlineKeyboardButton("No, skip", callback_data=f"edit_no_{next_label}")
+            ]
+        ])
+        await context.bot.send_message(chat_id=user_id, text=next_section, reply_markup=keyboard)
+    else:
+        await context.bot.send_message(chat_id=user_id, text="✅ Step-by-step review completed.")
+        pdf_path = user_results.get(user_id)
+        if pdf_path:
+            keyboard = InlineKeyboardMarkup.from_button(InlineKeyboardButton("Download PDF version", callback_data="get_pdf"))
+            await context.bot.send_message(chat_id=user_id, text="You can download the result as PDF:", reply_markup=keyboard)
 
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=f"✏️ Please send your revised version for the *{section}* section.",
-        parse_mode="Markdown"
-    )
 
 def split_text(text, max_length=4000):
     lines = text.split('\n')
