@@ -132,7 +132,7 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
             await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             sections, pdf_path = await step_by_step_review(file_path)
             user_results[user_id] = pdf_path
-	    user_step_sections[user_id] = sections
+            user_step_sections[user_id] = sections
 # Отримаємо перший блок для показу користувачу
 key, label, current = user_step_sections[user_id].pop(0)
 user_state[user_id]["current_section"] = key
