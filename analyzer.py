@@ -270,9 +270,30 @@ You are a professional CV coach.
 {style_note}
 {reply_lang}
 
+SECTION_KEYS = {
+    "summary/profile": "sum",
+    "skills/qualifications": "skills",
+    "experience": "exp",
+    "education": "edu",
+    "formatting & ats": "fmt"
+}
+
+SECTION_LABELS = {v: k.title() for k, v in SECTION_KEYS.items()}
+
+async def step_by_step_review(file_path):
+    content = safe_take(extract_text_from_file(file_path))
+    lang = detect_language(content)
+    market_note, style_note, reply_lang = market_and_style(lang)
+
+    prompt = f"""
+You are a professional CV coach.
+{market_note}
+{style_note}
+{reply_lang}
+
 Do a **step-by-step** interactive CV review. After each section:
 - Give short feedback.
-- Use this wording: \n\n"Would you like to edit this section now?"
+- Use this wording: \n\n\"Would you like to edit this section now?\"
 - Use clear labels:
   1. **Summary/Profile**
   2. **Skills/Qualifications**
@@ -282,23 +303,23 @@ Do a **step-by-step** interactive CV review. After each section:
 
 Important:
 - End each section with these inline buttons:
-  [Edit ✏️] (callback_data: edit_SECTION_NAME)
-  [Skip ⏭️] (callback_data: skip_SECTION_NAME)
+  [Edit ✏️] (callback_data: edit_KEY)
+  [Skip ⏭️] (callback_data: skip_KEY)
 - Use Markdown formatting for headings and bullet points.
 
 Resume:
 {content}
 """
     response = await _ask_gpt(prompt)
-    full_response = response
-    output_path = build_output_path("user", "step_by_step")
-    generate_pdf_report(full_response, output_path)
-    return full_response, output_path
+    sections = response.split("\n\n")
 
-async def edit_section(section_name: str, current_text: str) -> str:
-    prompt = (
-        f"Please improve the following section of a CV. Keep it concise and professional. "
-        f"Only rewrite the text, do not return explanations.\n\n"
-        f"Section: {section_name}\n\n{current_text}"
-    )
-    return await _ask_gpt(prompt)
+    parsed_sections = []
+    for block in sections:
+        header = block.split("\n", 1)[0].lower().strip("* ")
+        key = SECTION_KEYS.get(header)
+        if key:
+            parsed_sections.append((key, header.title(), block.strip()))
+
+    output_path = build_output_path("user", "step_by_step")
+    generate_pdf_report(response, output_path)
+    return parsed_sections, output_path
