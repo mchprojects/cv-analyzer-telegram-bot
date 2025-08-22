@@ -260,12 +260,11 @@ Resume:
     return response, output_path
 
 async def step_by_step_review(file_path):
-    async def _run():
-        content = safe_take(extract_text_from_file(file_path))
-        lang = detect_language(content)
-        market_note, style_note, reply_lang = market_and_style(lang)
+    content = safe_take(extract_text_from_file(file_path))
+    lang = detect_language(content)
+    market_note, style_note, reply_lang = market_and_style(lang)
 
-        prompt = f"""
+    prompt = f"""
 You are a professional CV coach.
 {market_note}
 {style_note}
@@ -282,28 +281,22 @@ Do a **step-by-step** interactive CV review. After each section:
 4. Education
 5. Formatting & ATS
 
-
 Do **not** move to the next section until user answers Yes/No.
 Keep your output clean and structured.
-
 
 Resume:
 {content}
 """
-response = await _ask_gpt(prompt)
-full_response = response
-output_path = build_output_path("user", "step_by_step")
-generate_pdf_report(full_response, output_path)
-return full_response, output_path
-
-
-return await _run()
-
+    response = await _ask_gpt(prompt)
+    full_response = response
+    output_path = build_output_path("user", "step_by_step")
+    generate_pdf_report(full_response, output_path)
+    return full_response, output_path
 
 async def edit_section(section_name: str, current_text: str) -> str:
-prompt = (
-f"Please improve the following section of a CV. Keep it concise and professional. "
-f"Only rewrite the text, do not return explanations.\n\n"
-f"Section: {section_name}\n\n{current_text}"
-)
-return await _ask_gpt(prompt)
+    prompt = (
+        f"Please improve the following section of a CV. Keep it concise and professional. "
+        f"Only rewrite the text, do not return explanations.\n\n"
+        f"Section: {section_name}\n\n{current_text}"
+    )
+    return await _ask_gpt(prompt)
