@@ -10,3 +10,5 @@ python-dateutil
 docx2pdf
 PyMuPDF
 reportlab
+weasyprint
+jinja2

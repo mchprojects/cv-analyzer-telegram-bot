@@ -322,3 +322,35 @@ def edit_section(section_name: str, current_text: str) -> str:
         f"Only rewrite the text, do not return explanations.\n\nSection: {section_name}\n\n{current_text}"
     )
     return prompt
+import os
+from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML
+
+def render_html_to_pdf(user_data: dict, output_path: str):
+    """
+    user_data = {
+        'name': 'John Doe',
+        'summary': 'Experienced Project Manager...',
+        'sections': [
+            {'title': 'Summary/Profile', 'score': 7, 'feedback': 'Try to personalize...'},
+            {'title': 'Skills & Qualifications', 'score': 8, 'feedback': 'Strong technical skills...'},
+            {'title': 'Experience', 'score': 6, 'feedback': 'Quantify your achievements...'},
+            {'title': 'Education', 'score': 9, 'feedback': 'Well-detailed and relevant.'},
+            {'title': 'Formatting & ATS', 'score': 5, 'feedback': 'Avoid tables and columns...'}
+        ],
+        'overall_score': 70,
+        'recommendations': [
+            'Use action verbs.',
+            'Include metrics in experience.',
+            'Tailor the CV for each application.'
+        ]
+    }
+
+    env = Environment(loader=FileSystemLoader("templates"))
+    template = env.get_template("report_template.html")
+    html_out = template.render(data=user_data)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    HTML(string=html_out).write_pdf(output_path)
+    return output_path
+
