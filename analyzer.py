@@ -162,6 +162,9 @@ async def analyze_resume(file_path):
     generate_pdf_report(full_response, output_path)
     return full_response, output_path
 
+# Інші функції (analyze_for_vacancy, give_hr_feedback, generate_cover_letter, step_by_step_review) додаються за потреби.
+
+
 async def analyze_for_vacancy(resume_path, vacancy_text):
     resume_content = safe_take(extract_text_from_file(resume_path))
     lang = detect_language(resume_content)

@@ -22,8 +22,7 @@ ADMIN_ID = 6929149032
 ALLOWED_USERS = {ADMIN_ID}
 DENY_MSG = (
     "❌ You do not have access to this bot.\n\n"
-    "If you would like to use it, please send your request "
-    "to: mchprojects1@gmail.com"
+    "If you would like to use it, please send your request to: mchprojects1@gmail.com"
 )
 
 def is_allowed(user_id: int) -> bool:
@@ -37,25 +36,22 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
     chat = update.effective_chat
     try:
         msg = (
-            "🚨 *Unauthorized access attempt detected*\n"
+            "\U0001F6A8 *Unauthorized access attempt detected*\n"
             f"- User: `{format_user(user)}`\n"
             f"- Chat ID: `{chat.id if chat else 'n/a'}`\n"
             f"- Message: `{update.message.text if update.message else 'n/a'}`"
         )
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode="Markdown")
-        logging.warning(f"🚨 Unauthorized access attempt! {format_user(user)}")
+        logging.warning(f"\U0001F6A8 Unauthorized access attempt! {format_user(user)}")
     except Exception as e:
         logging.error(f"Failed to notify admin about unauthorized access: {e}")
 
-# Runtime state
 user_state = {}
-user_results = {}           # stores pdf_path or text
-user_step_sections = {}     # stores list of (key, label, block_text)
+user_results = {}
+user_step_sections = {}
 
 markup = ReplyKeyboardMarkup(
-    [["CV analysis", "CV and job match analysis"],
-     ["HR Expert Advice", "Generate Cover Letter"],
-     ["Step-by-step CV review"]],
+    [["CV analysis", "CV and job match analysis"], ["HR Expert Advice", "Generate Cover Letter"], ["Step-by-step CV review"]],
     resize_keyboard=True
 )
 
@@ -130,56 +126,46 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
                 if mode == "vacancy":
                     text_result, pdf_path = await analyze_for_vacancy(resume_path, extract_text_from_file(vacancy_path))
                 else:
-                    text_result, pdf_path = await generate_cover_letter(
-                        extract_text_from_file(vacancy_path),
-                        extract_text_from_file(resume_path)
-                    )
+                    text_result, pdf_path = await generate_cover_letter(extract_text_from_file(vacancy_path), extract_text_from_file(resume_path))
 
         elif mode == "step":
             await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             sections, pdf_path = await step_by_step_review(file_path)
             user_results[user_id] = pdf_path
-            user_step_sections[user_id] = sections[:]  # copy list
+            user_step_sections[user_id] = sections
 
-            # Show first section with inline buttons
-            if user_step_sections[user_id]:
-                key, label, current = user_step_sections[user_id].pop(0)
-                user_state[user_id]["current_section"] = key
-                user_state[user_id]["current_text"] = current
+            if not sections:
+                await update.message.reply_text("\u274c No sections parsed. Please try another file.")
+                return
 
-                keyboard = InlineKeyboardMarkup([
-                    [
-                        InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{key}"),
-                        InlineKeyboardButton("No, skip", callback_data=f"edit_no_{key}")
-                    ]
-                ])
-                await update.message.reply_text(current, reply_markup=keyboard)
-                return
-            else:
-                await update.message.reply_text("No sections parsed. Please try another file.")
-                return
+            key, label, current = sections.pop(0)
+            user_state[user_id]["current_section"] = key
+            user_state[user_id]["current_text"] = current
+
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("Yes, edit", callback_data=f"edit_yes_{key}"),
+                    InlineKeyboardButton("No, skip", callback_data=f"edit_no_{key}")
+                ]
+            ])
+            await update.message.reply_text(current, reply_markup=keyboard)
+            return
 
         elif mode == "resume":
-            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             text_result, pdf_path = await analyze_resume(file_path)
-
         elif mode == "consult":
-            await update.message.reply_text("\u231b Processing your request... This may take 10–15 seconds")
             text_result, pdf_path = await give_hr_feedback(file_path)
-
         else:
             text_result, pdf_path = ("\u274c Unknown mode. Please select again.", None)
 
-        # Send results for non-step modes
         user_results[user_id] = pdf_path if pdf_path else text_result
-        if isinstance(text_result, str):
-            for chunk in split_text(text_result):
-                await update.message.reply_text(chunk)
+        for chunk in split_text(text_result):
+            await update.message.reply_text(chunk)
 
         if pdf_path:
-            keyboard = InlineKeyboardMarkup.from_button(
-                InlineKeyboardButton("Download PDF version", callback_data="get_pdf")
-            )
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("Download PDF version", callback_data="get_pdf")]
+            ])
             await update.message.reply_text("You can download the result as PDF:", reply_markup=keyboard)
 
     except Exception as e:
@@ -200,15 +186,10 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     user_id = query.from_user.id
     data = query.data
-    # data format: edit_yes_sum  or  edit_no_exp
     _, decision, section = data.split("_", 2)
 
     if decision == "no":
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=f"✅ OK! Moving on from *{section.replace('_', ' ').title()}*.",
-            parse_mode="Markdown"
-        )
+        await context.bot.send_message(chat_id=user_id, text=f"✅ OK! Moving on from *{section.replace('_', ' ').title()}*.", parse_mode="Markdown")
     else:
         await context.bot.send_message(
             chat_id=user_id,
@@ -218,8 +199,7 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
         user_state[user_id]["awaiting_edit"] = section
         return
 
-    # advance to the next section
-    if user_step_sections.get(user_id):
+    if user_step_sections[user_id]:
         key, label, current = user_step_sections[user_id].pop(0)
         user_state[user_id]["current_section"] = key
         user_state[user_id]["current_text"] = current
@@ -234,9 +214,9 @@ async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_message(chat_id=user_id, text="✅ Step-by-step review completed.")
         pdf_path = user_results.get(user_id)
         if pdf_path:
-            keyboard = InlineKeyboardMarkup.from_button(
-                InlineKeyboardButton("Download PDF version", callback_data="get_pdf")
-            )
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("Download PDF version", callback_data="get_pdf")]
+            ])
             await context.bot.send_message(chat_id=user_id, text="You can download the result as PDF:", reply_markup=keyboard)
 
 def split_text(text, max_length=4000):
