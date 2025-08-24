@@ -1,5 +1,3 @@
-from analyzer import render_html_to_pdf
-from analyzer import parse_gpt_output
 import os
 import re
 import fitz  # PyMuPDF
