@@ -327,8 +327,7 @@ from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
 def render_html_to_pdf(user_data: dict, output_path: str):
-    """
-    user_data = {
+        user_data = {
         'name': 'John Doe',
         'summary': 'Experienced Project Manager...',
         'sections': [
