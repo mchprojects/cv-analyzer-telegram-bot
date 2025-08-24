@@ -1,3 +1,5 @@
+from analyzer import render_html_to_pdf
+from analyzer import parse_gpt_output
 import os
 import re
 import fitz  # PyMuPDF
@@ -155,12 +157,18 @@ async def analyze_resume(file_path):
     proactive_warning = universal_uk_warning(lang)
 
     prompt = _build_full_prompt(content, market_note, style_note, reply_lang)
-    response = await _ask_gpt(prompt)
-    full_response = f"{proactive_warning}\n\n{response}" if proactive_warning else response
+    gpt_response = await _ask_gpt(prompt)
+    full_response = f"{proactive_warning}\n\n{gpt_response}" if proactive_warning else gpt_response
 
+    # 🧠 Розбір GPT-відповіді
+    user_data = parse_gpt_output(full_response)
+
+    # 📄 Створення PDF
     output_path = build_output_path("user", "cv_analysis")
-    generate_pdf_report(full_response, output_path)
+    render_html_to_pdf(user_data, output_path)
+
     return full_response, output_path
+
 
 # Інші функції (analyze_for_vacancy, give_hr_feedback, generate_cover_letter, step_by_step_review) додаються за потреби.
 
