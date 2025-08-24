@@ -331,6 +331,67 @@ def edit_section(section_name: str, current_text: str) -> str:
 import os
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
+def parse_gpt_output(gpt_text: str) -> dict:
+    """
+    Парсить текстову відповідь GPT у формат user_data для HTML-шаблону.
+    """
+    lines = gpt_text.strip().splitlines()
+    data = {
+        'name': '',
+        'summary': '',
+        'sections': [],
+        'overall_score': 0,
+        'recommendations': [],
+    }
+
+    current_section = None
+    buffer = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        if line.startswith("📊 CV Score Breakdown:"):
+            current_section = "scores"
+            continue
+        elif line.startswith("🌟 Overall Score:"):
+            match = re.search(r'(\d+)', line)
+            if match:
+                data["overall_score"] = int(match.group(1))
+            continue
+        elif line.startswith("📌"):
+            current_section = "recommendations"
+            continue
+
+        if current_section == "scores":
+            match = re.match(r"•\s*(.+?):\s*(\d+)", line)
+            if match:
+                title = match.group(1).strip()
+                score = int(match.group(2))
+                data["sections"].append({
+                    "title": title,
+                    "score": score,
+                    "feedback": ""
+                })
+
+        elif current_section == "recommendations":
+            data["recommendations"].append(line.strip("• ").strip("- ").strip())
+
+        else:
+            if data["summary"] == "":
+                data["summary"] = line
+            else:
+                buffer.append(line)
+
+    # Заповнення фідбеку з буфера (якщо GPT не розділяв чітко по секціях)
+    if buffer and data["sections"]:
+        chunk_size = max(1, len(buffer) // len(data["sections"]))
+        for i, section in enumerate(data["sections"]):
+            section["feedback"] = "\n".join(buffer[i*chunk_size:(i+1)*chunk_size]).strip()
+
+    return data
+
 
 def render_html_to_pdf(user_data: dict, output_path: str):
     """
