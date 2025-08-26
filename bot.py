@@ -83,7 +83,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     if text in modes:
-    user_state.setdefault(user_id, {})["mode"] = modes[text]
+        user_state.setdefault(user_id, {})["mode"] = modes[text]
         prompts = {
             "resume": "Please upload your resume in PDF, DOCX or text format",
             "vacancy": "Please send the job vacancy (PDF, DOCX or text), and then send your CV",
