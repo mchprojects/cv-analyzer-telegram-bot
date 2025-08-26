@@ -9,7 +9,9 @@ from analyzer import (
     give_hr_feedback,
     generate_cover_letter,
     step_by_step_review,
-    edit_section
+    edit_section,
+    render_html_to_pdf,
+    build_output_path
 )
 from dotenv import load_dotenv
 
@@ -49,6 +51,7 @@ async def notify_admin_about_unauthorized(update: Update, context: ContextTypes.
 user_state = {}
 user_results = {}
 user_step_sections = {}
+user_analysis_data = {}
 
 markup = ReplyKeyboardMarkup(
     [["CV analysis", "CV and job match analysis"], ["HR Expert Advice", "Generate Cover Letter"], ["Step-by-step CV review"]],
@@ -159,6 +162,8 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
             text_result, pdf_path = ("\u274c Unknown mode. Please select again.", None)
 
         user_results[user_id] = pdf_path if pdf_path else text_result
+        user_analysis_data[user_id] = text_result
+
         for chunk in split_text(text_result):
             await update.message.reply_text(chunk)
 
@@ -173,13 +178,26 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE, file
 
 async def handle_pdf_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    pdf_path = user_results.get(user_id)
-    if pdf_path and os.path.exists(pdf_path):
-        await context.bot.send_document(chat_id=user_id, document=open(pdf_path, "rb"))
-    else:
-        await context.bot.send_message(chat_id=user_id, text="\u274c PDF file not found.")
+    await query.answer(text="\ud83d\udcc4 Generating PDF... Please wait.", show_alert=False)
+
+    try:
+        user_id = str(query.from_user.id)
+        analysis_data = user_analysis_data.get(user_id)
+
+        if not analysis_data:
+            await context.bot.send_message(chat_id=query.message.chat_id,
+                                           text="\u274c No analysis data found. Please analyze your resume first.")
+            return
+
+        output_path = build_output_path(user_id, "html_report")
+        render_html_to_pdf(analysis_data, output_path)
+
+        with open(output_path, "rb") as doc:
+            await context.bot.send_document(chat_id=query.message.chat_id, document=doc)
+
+    except Exception as e:
+        await context.bot.send_message(chat_id=query.message.chat_id,
+                                       text=f"\u274c Something went wrong during PDF generation:\n{e}")
 
 async def handle_edit_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
