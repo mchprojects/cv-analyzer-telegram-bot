@@ -1,7 +1,6 @@
 import os
 import re
 import fitz  # PyMuPDF
-import datetime
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -104,7 +103,7 @@ def generate_pdf_report(text: str, output_path: str):
     return output_path
 
 def build_output_path(user_id: str, prefix: str = "report") -> str:
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"results/{user_id}/{prefix}_{ts}.pdf"
 
 def _build_full_prompt(content: str, market_note: str, style_note: str, reply_lang: str) -> str:
@@ -165,7 +164,7 @@ async def analyze_resume(file_path):
     # 📄 Створення PDF
     output_path = build_output_path("user", "cv_analysis")
     render_html_to_pdf(user_data, output_path)
-
+    html_out = template.render(data=user_data, now=datetime.now())
     return full_response, output_path
 
 
