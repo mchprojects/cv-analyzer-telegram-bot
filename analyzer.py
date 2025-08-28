@@ -2,6 +2,7 @@ import os
 import re
 import fitz  # PyMuPDF
 import datetime
+from datetime import datetime
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from reportlab.lib.pagesizes import A4
@@ -415,7 +416,7 @@ def render_html_to_pdf(user_data: dict, output_path: str):
     """
     env = Environment(loader=FileSystemLoader("templates"))
     template = env.get_template("report_template.html")
-    html_out = template.render(data=user_data)
+    html_out = template.render(data=user_data, now=datetime.now())
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     HTML(string=html_out).write_pdf(output_path)
